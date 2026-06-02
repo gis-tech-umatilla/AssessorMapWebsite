@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Umatilla County Assessor Map QA Tool</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .error-dot { 
+            transform: translate(-50%, -50%);
+            transform-origin: center center;
+            width: 14px !important;
+            height: 14px !important;
+            font-size: 8px !important;
+        }
+        .map-text-annotation {
+            transform: translate(0%, -50%);
+            transform-origin: left center;
+            font-size: 6px !important;
+            height: 14px !important;
+        }
+        .map-text-annotation span {
+            font-size: 8px !important;
+        }
+
+/* --- IMMUTABLE PAPER WRAPPER PRINT CANVAS DESIGN --- */
+        @media print {
+            @page {
+                size: letter landscape;
+                margin: 0.4in 0.3in 0.4in 0.3in;
+            }
+
+            /* Strip the active web application layout environment completely */
+            #authGate, header, aside:first-of-type, #drawingToolbar, #zoomControls, #printControlContainer, aside:last-of-type, #floatingPopover {
+                display: none !important;
+            }
+
+            body, html {
+                height: auto !important;
+                overflow: visible !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+                font-family: Arial, sans-serif !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            /* Completely hide the application interface view layers during printing */
+            .flex-1.flex, #mapViewport {
+                display: none !important;
+            }
+
+            /* Pure Print Output Layout Block */
+            #isolatedPrintContainer {
+                display: block !important;
+                width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+                position: relative !important;
+            }
+
+            /* Static structural container for the map image frame on Page 1 */
+            .print-map-capture-wrapper {
+                display: block !important;
+                float: left !important;
+                width: 63% !important;
+                height: 82vh !important;
+                margin-right: 2% !important;
+                margin-bottom: 20px !important;
+                box-sizing: border-box !important;
+            }
+
+            .print-map-capture-wrapper canvas {
+                width: 100% !important;
+                height: 100% !important;
+                object-fit: contain !important;
+                border: 1px solid #94a3b8 !important;
+            }
+
+            /* Title heading properties */
+            .print-section-title {
+                font-size: 14px !important;
+                font-weight: bold !important;
+                color: #000000 !important;
+                text-transform: uppercase !important;
+                border-bottom: 2px solid #000000 !important;
+                padding-bottom: 4px !important;
+                margin-bottom: 10px !important;
+                width: 100% !important;
+                break-after: avoid !important;
+            }
+
+            /* Multi-Column container flow layout */
+            .print-columns-layout {
+                display: block !important;
+                width: 100% !important;
+                column-width: 200px !important;
+                column-gap: 15px !important;
+                column-fill: auto !important;
+            }
+
+            /* Print Item Box Layout Rules */
+            .print-issue-row {
+                background: #ffffff !important;
+                border: 1px solid #475569 !important;
+                border-radius: 4px !important;
+                padding: 6px 10px !important;
+                margin-bottom: 8px !important;
+                box-sizing: border-box !important;
+                display: inline-block !important;
+                width: 100% !important;
+                break-inside: avoid !important;
+            }
+
+            /* Print Metadata Formatting Fields */
+            .print-meta-label {
+                font-size: 11px !important;
+                font-weight: bold !important;
+                color: #000000 !important;
+                border-bottom: 1px dashed #cbd5e1 !important;
+                padding-bottom: 2px !important;
+                margin-bottom: 4px !important;
+            }
+
+            /* Clean plain text descriptions */
+            .print-description-text {
+                font-size: 10px !important;
+                font-weight: normal !important;
+                color: #000000 !important;
+                line-height: 1.3 !important;
+                word-wrap: break-word !important;
+                white-space: pre-wrap !important;
+            }
+        }
+        /* Screen Display Rules for Print Output Targets */
+        #isolatedPrintContainer {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col overflow-hidden select-none">
+
+    <div id="authGate" class="fixed inset-0 bg-[#4c5c68] flex items-center justify-center z-[9999] transition-opacity duration-300">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full text-center border border-gray-100 mx-4">
+            <h2 class="text-2xl font-bold text-gray-800 tracking-tight">Umatilla County Assessor</h2>
+            <p class="text-sm text-slate-500 mt-1 mb-6">Map QA Tool Verification Portal</p>
+            <div id="authContent">
+                <button id="googleSignInBtn" class="w-full flex items-center justify-center space-x-3 bg-white hover:bg-gray-50 text-gray-700 font-semibold py-3 px-4 border border-gray-300 rounded-xl shadow-sm cursor-pointer transition-all duration-150">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24">
+                        <path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.866-3.577-7.866-8s3.536-8 7.866-8c2.46 0 4.105 1.025 5.047 1.926l3.227-3.11C18.416 1.872 15.62 1 12.24 1 6.033 1 12.24s5.033 11.24 11.24 11.24c6.478 0 10.793-4.537 10.793-10.986 0-.742-.08-1.31-.177-1.709H12.24z"/>
+                    </svg>
+                    <span>Sign in with Google</span>
+                </button>
+            </div>
+            <div id="authErrorMsg" class="mt-4 text-xs font-semibold text-red-600 bg-red-50 p-2.5 rounded-lg border border-red-200 hidden"></div>
+        </div>
+    </div>
+
+    <header class="bg-[#4c5c68] text-white p-4 shadow-md flex justify-between items-center z-50 border-b border-white/10">
+        <h1 class="text-xl font-bold tracking-tight">Umatilla County Assessor Map QA</h1>
+        <div class="flex items-center space-x-4">
+            <span id="userBadge" class="text-xs bg-black/20 px-2.5 py-1 rounded-md text-slate-200 border border-white/5 font-medium"></span>
+            <button id="signOutBtn" class="text-xs font-semibold bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded transition cursor-pointer">Sign Out</button>
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden w-full relative">
+        <aside class="w-72 bg-[#4c5c68] text-slate-100 flex flex-col h-full border-r border-black/20 shadow-xl z-30">
+            <div class="p-4 border-b border-black/20 bg-black/10 flex flex-col space-y-2">
+                <span class="text-xs font-bold text-[#b3a98f] uppercase tracking-wider">Upload PDF</span>
+                <input type="file" id="pdfUpload" accept="application/pdf" class="w-full text-xs text-slate-200 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-[#1985a1] file:text-white hover:file:bg-[#1985a1]/80 cursor-pointer bg-black/10 p-1.5 rounded border border-black/10"/>
+            </div>
+            
+            <div class="p-4 border-b border-black/20 bg-black/10">
+                <h2 class="font-semibold text-slate-200 text-sm tracking-wider uppercase">ASSESSOR MAPS</h2>
+            </div>
+            <div id="mapList" class="flex-1 overflow-y-auto p-2 space-y-1">
+                <p class="text-xs text-slate-300/60 italic p-2">Loading maps database...</p>
+            </div>
+        </aside>
+
+        <div class="flex-1 relative bg-slate-300 overflow-hidden flex items-center justify-center" id="mapViewport">
+            <div class="absolute top-4 left-4 z-40 bg-[#4c5c68]/95 backdrop-blur text-white rounded-xl shadow-2xl p-2 flex flex-col space-y-1.5 border border-white/10 hidden" id="drawingToolbar">
+                <span class="text-[10px] text-[#b3a98f] font-bold uppercase tracking-wider text-center border-b border-black/20 pb-1 mb-1">Tools</span>
+                <button id="tool-view" class="tool-btn px-3 py-1.5 bg-[#1985a1] text-white text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition shadow-md"><span>View Map</span></button>
+                <button id="tool-dot" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>·</span><span>Point</span></button>
+                <button id="tool-line" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>—</span><span>Solid Line</span></button>
+                <button id="tool-dash" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>---</span><span>Dashed Line</span></button>
+                <button id="tool-arrow" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>⮕</span><span>Arrow</span></button>
+                <button id="tool-text" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>ABC</span><span>Insert Text</span></button>
+                <span class="text-[9px] text-[#b3a98f] text-center pt-1 border-t border-black/20 font-medium italic" id="toolHint">Mode: Viewing / Pan-Zoom</span>
+            </div>
+
+            <div class="absolute top-4 right-4 z-40 bg-[#4c5c68]/90 backdrop-blur text-white rounded-lg shadow-2xl p-1 flex space-x-1 border border-white/10 hidden" id="zoomControls">
+                <button id="zoomIn" class="px-3 py-1 bg-black/20 hover:bg-black/30 rounded font-bold cursor-pointer">+</button>
+                <button id="zoomOut" class="px-3 py-1 bg-black/20 hover:bg-black/30 rounded font-bold cursor-pointer">-</button>
+                <button id="zoomReset" class="px-2 py-1 bg-black/20 hover:bg-black/40 rounded text-xs cursor-pointer">Reset View</button>
+            </div>
+
+            <div class="absolute bottom-4 right-4 z-40 hidden" id="printControlContainer">
+                <button id="printMapBtn" class="flex items-center space-x-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl shadow-2xl border border-white/10 cursor-pointer transition duration-150">
+                    <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.8A2.25 2.25 0 0 1 9 11.55h6a2.25 2.25 0 0 1 2.28 2.25v5.1a2.25 2.25 0 0 1-2.28 2.25H9a2.25 2.25 0 0 1-2.72-2.25v-5.1zM18 8.25V5.1A2.25 2.25 0 0 0 15.72 3H8.28A2.25 2.25 0 0 0 6 5.1v3.15m12 0A2.25 2.25 0 0 1 20.25 10.5v3.15a2.25 2.25 0 0 1-2.25 2.25H4.05a2.25 2.25 0 0 1-2.25-2.25V10.5A2.25 2.25 0 0 1 4.05 8.25h13.95zM16.5 11.25h.008v.008h-.008v-.008z"></path>
+                    </svg>
+                    <span>Print Map and Issue List</span>
+                </button>
+            </div>
+
+            <div id="panzoomContainer" class="inline-block relative">
+                <div id="mapWrapper" class="relative hidden select-none">
+                    <canvas id="pdfCanvas" class="shadow-2xl max-h-[85vh] w-auto bg-white"></canvas>
+                    <svg id="vectorDrawingOverlay" class="absolute inset-0 z-10 w-full h-full cursor-crosshair pointer-events-auto">
+                        <defs>
+                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626" />
+                            </marker>
+                            <marker id="arrowhead-fixed" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#059669" />
+                            </marker>
+                        </defs>
+                    </svg>
+                    <div id="dotsContainer" class="absolute inset-0 pointer-events-none z-20"></div>
+                </div>
+            </div>
+
+            <div id="placeholderText" class="text-[#4c5c68] text-center z-10">
+                <p class="text-lg font-bold opacity-80 text-[#4c5c68]">No Assessor Map Selected</p>
+                <p class="text-sm text-slate-500 font-medium">Choose a Map From The Left Sidebar</p>
+            </div>
+        </div>
+
+        <aside class="w-85 bg-white border-l border-gray-200 flex flex-col h-full shadow-2xl z-30">
+            <div class="p-3 border-b border-gray-200 bg-gray-50 flex flex-col space-y-2">
+                <h2 class="font-semibold text-gray-700 text-sm">Issue List</h2>
+                <div class="flex space-x-1.5">
+                    <button id="toggleVisibility" class="flex-1 py-1 text-[11px] font-semibold bg-red-200 text-red-700 rounded hover:bg-red-300 transition flex items-center justify-center space-x-1 cursor-pointer">
+                        <span id="visibilityText">Hide Open</span>
+                    </button>
+                    <button id="toggleFixedVisibility" class="flex-1 py-1 text-[11px] font-semibold bg-emerald-100 text-emerald-800 rounded hover:bg-emerald-200 transition flex items-center justify-center space-x-1 cursor-pointer">
+                        <span id="fixedVisibilityText">Hide Fixed</span>
+                    </button>
+                </div>
+            </div>
+            <div id="sidebarList" class="flex-1 overflow-y-auto p-4 space-y-3">
+                <p class="text-sm text-gray-400 italic">Select a map to view flagged errors.</p>
+            </div>
+        </aside>
+    </div>
+
+    <div id="isolatedPrintContainer"></div>
+
+    <div id="floatingPopover" class="absolute z-[999] bg-white rounded-xl shadow-2xl p-4 border border-slate-200 max-w-xs w-64 hidden flex flex-col space-y-2.5 transition-all duration-100">
+        <div class="flex justify-between items-center border-b border-slate-100 pb-1.5">
+            <div class="flex items-center space-x-1.5">
+                <span id="popoverBadge" class="text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center font-bold"></span>
+                <h3 id="popoverTitle" class="text-[11px] font-bold text-slate-500 uppercase tracking-wide truncate max-w-[140px]"></h3>
+            </div>
+            <button id="closePopoverBtn" class="text-slate-400 hover:text-slate-600 font-bold text-xs cursor-pointer px-1 rounded hover:bg-slate-100">✕</button>
+        </div>
+        <div>
+            <p id="popoverContent" class="text-xs text-slate-700 font-medium whitespace-pre-wrap leading-relaxed break-words max-h-32 overflow-y-auto"></p>
+        </div>
+        <div class="flex justify-end pt-1">
+            <button id="popoverActionBtn" class="w-full py-1 text-[11px] font-semibold text-white rounded transition cursor-pointer shadow-xs"></button>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+        const SUPABASE_URL = "https://wsacgqykgmnsxzaqyvpn.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_Tg79inBzykOOvoyN0ne1Jw_i7BpKu4D";
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // --- AUTH & ROSTER SYSTEM CONTROLS ---
+        const EXPLICIT_ALLOWED_EMAILS = [
+            "ian.freel@umatillacounty.gov",
+            "matthew.lynch@umatillacounty.gov",
+            "mckenzie.bowey@umatillacounty.gov" 
+        ];
+
+        const authGate = document.getElementById('authGate');
+        const googleSignInBtn = document.getElementById('googleSignInBtn');
+        const authErrorMsg = document.getElementById('authErrorMsg');
+        const userBadge = document.getElementById('userBadge');
+        const signOutBtn = document.getElementById('signOutBtn');
+
+        let currentActivePopoverId = null;
+
+        initAuthCheck();
+
+        async function initAuthCheck() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            evaluateUserSession(session);
+
+            supabaseClient.auth.onAuthStateChange((_event, session) => {
+                evaluateUserSession(session);
+            });
+        }
+
+        function getEmailPrefix(email) {
+            if (!email) return 'Unknown';
+            return email.split('@')[0].toLowerCase();
+        }
+
+        function evaluateUserSession(session) {
+            if (session && session.user) {
+                const userEmail = session.user.email.toLowerCase();
+                const isPermitted = EXPLICIT_ALLOWED_EMAILS.map(e => e.toLowerCase()).includes(userEmail);
+
+                if (isPermitted) {
+                    authGate.classList.add('hidden');
+                    userBadge.innerText = userEmail;
+                    authErrorMsg.classList.add('hidden');
+                    fetchMapsDirectory();
+                } else {
+                    authGate.classList.remove('hidden');
+                    authErrorMsg.innerText = `Access Denied: ${userEmail} is not authorized to use this tool.`;
+                    authErrorMsg.classList.remove('hidden');
+                    userBadge.innerText = "";
+                }
+            } else {
+                authGate.classList.remove('hidden');
+                userBadge.innerText = "";
+            }
+        }
+
+        googleSignInBtn.addEventListener('click', async () => {
+            const { error } = await supabaseClient.auth.signInWithOAuth({
+                provider: 'google',
+                options: { redirectTo: window.location.origin }
+            });
+            if (error) {
+                authErrorMsg.innerText = "OAuth Error: " + error.message;
+                authErrorMsg.classList.remove('hidden');
+            }
+        });
+
+        signOutBtn.addEventListener('click', async () => {
+            await supabaseClient.auth.signOut();
+            window.location.reload();
+        });
+
+        // --- CORE APPLICATION STATES ---
+        let isSubmitting = false;
+        let currentMapId = null;
+        let activeErrors = [];
+        let panzoomInstance = null;
+        let pinsVisible = true;
+        let fixedPinsVisible = true;
+
+        let activeTool = 'view'; 
+        let firstPointClicked = null; 
+        let newlyCreatedPinId = null; 
+
+        const GIS_LAYERS_REGISTRY = [
+            "Adjacent County Name/Stateline Text", "Bearing And Distance", "Block Number",
+            "Canal Text", "Code Area Text", "Conditions Of Approval", "Creek Text",
+            "Easement Text", "Government Lot Acerage", "Government Lot Number",
+            "Map Index Text", "Lot Number/Parcel Number", "Misc Water Text",
+            "Other Right Of Way Data Text", "Private Road Text", "Public Road Text",
+            "Railroad Text", "Reference Notes", "River Text", "Section Number",
+            "Subdivision/Plat Name", "Tax Lot Acreage", "Tax Lot Number",
+            "Vacation Ordinance Text", "Water Body Text"
+        ];
+
+        const pdfUpload = document.getElementById('pdfUpload');
+        const mapList = document.getElementById('mapList');
+        const mapWrapper = document.getElementById('mapWrapper');
+        const pdfCanvas = document.getElementById('pdfCanvas');
+        const placeholderText = document.getElementById('placeholderText');
+        const vectorDrawingOverlay = document.getElementById('vectorDrawingOverlay');
+        const dotsContainer = document.getElementById('dotsContainer');
+        const sidebarList = document.getElementById('sidebarList');
+        const zoomControls = document.getElementById('zoomControls');
+        const drawingToolbar = document.getElementById('drawingToolbar');
+        const panzoomContainer = document.getElementById('panzoomContainer');
+        const toggleVisibilityBtn = document.getElementById('toggleVisibility');
+        const visibilityText = document.getElementById('visibilityText');
+        const toggleFixedVisibilityBtn = document.getElementById('toggleFixedVisibility');
+        const fixedVisibilityText = document.getElementById('fixedVisibilityText');
+        const toolHint = document.getElementById('toolHint');
+        const printControlContainer = document.getElementById('printControlContainer');
+        const printMapBtn = document.getElementById('printMapBtn');
+        const isolatedPrintContainer = document.getElementById('isolatedPrintContainer');
+
+        // Floating Popover Specific Elements
+        const floatingPopover = document.getElementById('floatingPopover');
+        const popoverBadge = document.getElementById('popoverBadge');
+        const popoverTitle = document.getElementById('popoverTitle');
+        const popoverContent = document.getElementById('popoverContent');
+        const closePopoverBtn = document.getElementById('closePopoverBtn');
+        const popoverActionBtn = document.getElementById('popoverActionBtn');
+
+        function calculateNextAvailableErrorNumber() {
+            const usedNumbers = activeErrors.map(e => e.error_number).filter(n => n != null);
+            let candidate = 1;
+            while (usedNumbers.includes(candidate)) { candidate++; }
+            return candidate;
+        }
+
+        toggleVisibilityBtn.addEventListener('click', () => {
+            pinsVisible = !pinsVisible;
+            visibilityText.innerText = pinsVisible ? 'Hide Open' : 'Show Open';
+            renderUI();
+        });
+
+        toggleFixedVisibilityBtn.addEventListener('click', () => {
+            fixedPinsVisible = !fixedPinsVisible;
+            fixedVisibilityText.innerText = fixedPinsVisible ? 'Hide Fixed' : 'Show Fixed';
+            renderUI();
+        });
+
+        // FLOATING CONTEXT POPUP ENGINE
+        function triggerIssuePopover(clickEvent, err) {
+            // Check if clicking the currently open popover target to toggle it closed
+            if (currentActivePopoverId === err.id && !floatingPopover.classList.contains('hidden')) {
+                hideIssuePopover();
+                return;
+            }
+
+            const isFixed = err.status === 'fixed';
+            const pinNum = err.error_number || '?';
+            let typeLabel = 'Point';
+            if (err.tool_type === 'line') typeLabel = 'Line';
+            if (err.tool_type === 'dash') typeLabel = 'Dash';
+            if (err.tool_type === 'arrow') typeLabel = 'Arrow';
+            if (err.tool_type === 'text') typeLabel = 'Text';
+
+            // Store active popover reference identifier
+            currentActivePopoverId = err.id;
+
+            popoverBadge.className = `rounded-full w-4 h-4 text-[10px] flex items-center justify-center font-bold ${isFixed ? 'bg-emerald-600' : 'bg-red-600'}`;
+            popoverBadge.innerText = pinNum;
+            popoverTitle.innerText = `${typeLabel} ${err.created_by ? `(${err.created_by})` : ''}`;
+            
+            const screenInput = document.getElementById(`input-${err.id}`);
+            const textValue = screenInput ? screenInput.value : (err.description || '');
+            popoverContent.innerText = textValue.trim() || 'No Description';
+
+            popoverActionBtn.innerText = isFixed ? 'Reopen Issue' : 'Mark As Fixed';
+            popoverActionBtn.className = `w-full py-1 text-[11px] font-semibold text-white rounded shadow-xs transition cursor-pointer ${isFixed ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'}`;
+            
+            popoverActionBtn.onclick = () => {
+                togglePinStatus(err.id, err.status);
+                hideIssuePopover();
+            };
+
+            const viewportRect = document.getElementById('mapViewport').getBoundingClientRect();
+            const targetElement = clickEvent.currentTarget;
+            
+            let targetCenterX, targetTopY;
+
+            if (targetElement && typeof targetElement.getBoundingClientRect === 'function') {
+                const targetRect = targetElement.getBoundingClientRect();
+                targetCenterX = (targetRect.left + targetRect.width / 2) - viewportRect.left;
+                targetTopY = targetRect.top - viewportRect.top;
+            } else {
+                targetCenterX = clickEvent.clientX - viewportRect.left;
+                targetTopY = clickEvent.clientY - viewportRect.top;
+            }
+
+            floatingPopover.classList.remove('hidden');
+
+            const cardWidth = floatingPopover.offsetWidth || 256;
+            const cardHeight = floatingPopover.offsetHeight || 120;
+
+            let finalLeft = targetCenterX - (cardWidth / 2);
+            let finalTop = targetTopY - cardHeight - 8; 
+
+            if (finalLeft < 10) finalLeft = 10;
+            if (finalLeft + cardWidth > viewportRect.width - 10) finalLeft = viewportRect.width - cardWidth - 10;
+            
+            if (finalTop < 10) {
+                if (targetElement && typeof targetElement.getBoundingClientRect === 'function') {
+                    const targetRect = targetElement.getBoundingClientRect();
+                    finalTop = (targetRect.bottom - viewportRect.top) + 8;
+                } else {
+                    finalTop = targetTopY + 20;
+                }
+            }
+
+            floatingPopover.style.left = `${finalLeft}px`;
+            floatingPopover.style.top = `${finalTop}px`;
+        }
+
+        function hideIssuePopover() {
+            floatingPopover.classList.add('hidden');
+            currentActivePopoverId = null;
+        }
+
+        closePopoverBtn.addEventListener('click', hideIssuePopover);
+        
+        // Smart backdrop closure logic
+        document.getElementById('mapViewport').addEventListener('click', (e) => {
+            // Dismiss popover card only if click falls outside both popover boundary and vector overlays
+            if (!floatingPopover.contains(e.target) && e.target.id !== 'floatingPopover' && e.target.id === 'vectorDrawingOverlay') {
+                hideIssuePopover();
+            }
+        });
+
+        // RE-COMPILED PRINT ROUTINE SYSTEM
+        printMapBtn.addEventListener('click', () => {
+            const activeFilteredErrors = activeErrors.filter(err => {
+                const isFixed = err.status === 'fixed';
+                if (!isFixed && !pinsVisible) return false;
+                if (isFixed && !fixedPinsVisible) return false;
+                return true;
+            });
+
+            const sourceMapContainer = document.getElementById('panzoomContainer');
+            const mapClone = sourceMapContainer.cloneNode(true);
+            
+            mapClone.style.transform = 'none';
+            mapClone.style.transformOrigin = 'initial';
+            
+            const sourceCanvas = document.getElementById('pdfCanvas');
+            const targetCanvas = mapClone.querySelector('#pdfCanvas');
+            if (sourceCanvas && targetCanvas) {
+                targetCanvas.width = sourceCanvas.width;
+                targetCanvas.height = sourceCanvas.height;
+                const destCtx = targetCanvas.getContext('2d');
+                destCtx.drawImage(sourceCanvas, 0, 0);
+            }
+
+            let issuesHTML = `
+                <div class="print-columns-layout">
+                    <div class="print-section-title">Issue List</div>
+            `;
+
+            activeFilteredErrors.forEach((err) => {
+                const pinNum = err.error_number || '?';
+                let typeLabel = 'Point';
+                if (err.tool_type === 'line') typeLabel = 'Line';
+                if (err.tool_type === 'dash') typeLabel = 'Dash';
+                if (err.tool_type === 'arrow') typeLabel = 'Arrow';
+                if (err.tool_type === 'text') typeLabel = 'Map Text';
+
+                const creatorTag = err.created_by ? `(${err.created_by})` : '';
+                const inputEl = document.getElementById(`input-${err.id}`);
+                const rawDescriptionValue = inputEl ? inputEl.value : (err.description || '');
+
+                issuesHTML += `
+                    <div class="print-issue-row">
+                        <div class="print-meta-label">#${pinNum} ${typeLabel} ${creatorTag}</div>
+                        <div class="print-description-text">${rawDescriptionValue.trim() || 'No description provided.'}</div>
+                    </div>
+                `;
+            });
+
+            if (activeFilteredErrors.length === 0) {
+                issuesHTML += `
+                    <div class="print-issue-row">
+                        <div class="print-description-text" style="font-style:italic; color:#64748b;">No active items logged matching current filtering states.</div>
+                    </div>
+                `;
+            }
+
+            issuesHTML += `</div>`; 
+
+            isolatedPrintContainer.innerHTML = '';
+            
+            const printMapWrapper = document.createElement('div');
+            printMapWrapper.className = 'print-map-capture-wrapper';
+            printMapWrapper.appendChild(mapClone);
+            
+            isolatedPrintContainer.appendChild(printMapWrapper);
+            isolatedPrintContainer.insertAdjacentHTML('beforeend', issuesHTML);
+
+            window.print();
+            isolatedPrintContainer.innerHTML = '';
+        });
+
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.tool-btn').forEach(b => b.className = "tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition");
+                const selectedTool = btn.id.replace('tool-', '');
+                activeTool = selectedTool;
+                firstPointClicked = null; 
+                hideIssuePopover();
+                
+                const oldTemp = document.getElementById('temp-start-indicator');
+                if (oldTemp) oldTemp.remove();
+                
+                btn.className = "tool-btn px-3 py-1.5 bg-[#1985a1] text-white text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition shadow-md";
+                
+                if (activeTool === 'view') { 
+                    toolHint.innerText = "Viewing / Pan-Zoom";
+                    vectorDrawingOverlay.style.cursor = 'grab';
+                } else if (activeTool === 'dot') { 
+                    toolHint.innerText = "Place Point"; 
+                    vectorDrawingOverlay.style.cursor = 'crosshair';
+                } else if (activeTool === 'text') { 
+                    toolHint.innerText = "Type in Right Sidebar to Insert Text"; 
+                    vectorDrawingOverlay.style.cursor = 'crosshair';
+                } else { 
+                    toolHint.innerText = "Click The Start And End"; 
+                    vectorDrawingOverlay.style.cursor = 'crosshair';
+                }
+            });
+        });
+
+        let lastClickTime = 0;
+
+        vectorDrawingOverlay.addEventListener('click', async (e) => {
+            if (!currentMapId || activeTool === 'view') return;
+
+            const currentTime = Date.now();
+            if (currentTime - lastClickTime < 500) {
+                console.log("Click ignored: Cooldown active.");
+                return; 
+            }
+            lastClickTime = currentTime; 
+
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            const emailPrefix = session && session.user ? getEmailPrefix(session.user.email) : null;
+
+            const rect = vectorDrawingOverlay.getBoundingClientRect();
+            const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
+            const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+
+            if (activeTool === 'dot' || activeTool === 'text') {
+                const initialPlaceholder = activeTool === 'text' ? 'Enter Text Here...' : '';
+                const targetNum = calculateNextAvailableErrorNumber();
+                
+                const temporaryId = 'temp-' + Date.now();
+                activeErrors.push({ id: temporaryId, error_number: targetNum, status: 'open' });
+
+                const { data, error } = await supabaseClient.from('map_errors').insert([{ 
+                    map_id: currentMapId,
+                    x_percent: xPercent, 
+                    y_percent: yPercent, 
+                    description: initialPlaceholder, 
+                    tool_type: activeTool,
+                    gis_layer: null, 
+                    status: 'open',
+                    error_number: targetNum,
+                    created_by: emailPrefix
+                }]).select();
+
+                activeErrors = activeErrors.filter(err => err.id !== temporaryId);
+
+                if (!error && data.length > 0) {
+                    newlyCreatedPinId = data[0].id;
+                }
+            }
+            else if (activeTool === 'line' || activeTool === 'dash' || activeTool === 'arrow') {
+                if (!firstPointClicked) {
+                    firstPointClicked = { x: xPercent, y: yPercent };
+                    toolHint.innerText = "Start Set! Click Where shape Should End.";
+                    
+                    const tempIndicator = document.createElement('div');
+                    tempIndicator.id = "temp-start-indicator";
+                    tempIndicator.className = "absolute bg-amber-500 w-3 h-3 rounded-full border border-white animate-ping";
+                    tempIndicator.style.left = `${xPercent}%`;
+                    tempIndicator.style.top = `${yPercent}%`;
+                    dotsContainer.appendChild(tempIndicator);
+                } else {
+                    const endPoint = { x: xPercent, y: yPercent };
+                    const tempInd = document.getElementById('temp-start-indicator');
+                    if (tempInd) tempInd.remove();
+
+                    const geometryString = JSON.stringify({ 
+                        x1: firstPointClicked.x, y1: firstPointClicked.y, 
+                        x2: endPoint.x, y2: endPoint.y 
+                    });
+
+                    const targetNum = calculateNextAvailableErrorNumber();
+
+                    const temporaryId = 'temp-' + Date.now();
+                    activeErrors.push({ id: temporaryId, error_number: targetNum, status: 'open' });
+
+                    const { data, error } = await supabaseClient.from('map_errors').insert([{ 
+                        map_id: currentMapId,
+                        x_percent: firstPointClicked.x, 
+                        y_percent: firstPointClicked.y, 
+                        description: '', 
+                        tool_type: activeTool,
+                        geometry_data: geometryString,
+                        status: 'open',
+                        error_number: targetNum,
+                        created_by: emailPrefix
+                    }]).select();
+
+                    activeErrors = activeErrors.filter(err => err.id !== temporaryId);
+
+                    if (!error && data.length > 0) newlyCreatedPinId = data[0].id;
+                    firstPointClicked = null;
+                    toolHint.innerText = "Click The Start And End";
+                }
+            }
+        });
+
+        async function saveInlineDescription(pinId, value) {
+            await supabaseClient.from('map_errors').update({ description: value.trim() }).eq('id', pinId);
+        }
+
+        async function saveInlineLayer(pinId, selectedLayer) {
+            const targetValue = selectedLayer === "" ? null : selectedLayer;
+            await supabaseClient.from('map_errors').update({ gis_layer: targetValue }).eq('id', pinId);
+        }
+
+        function adjustPinScaling() {
+            if (!panzoomInstance) return;
+            document.querySelectorAll('.svg-markup-line').forEach(line => {
+                line.setAttribute('stroke-width', (1.3).toString());
+            });
+        }
+
+        pdfUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const cleanName = file.name.replace(/\s+/g, '_');
+            const uniqueStoragePath = `public/${Date.now()}_${cleanName}`;
+            placeholderText.innerHTML = `<p class='text-[#b3a98f] font-semibold animate-pulse'>Uploading ${file.name} to cloud servers...</p>`;
+
+            const { data: storageData, error: storageErr } = await supabaseClient.storage.from('assessor-maps').upload(uniqueStoragePath, file);
+            if (storageErr) return alert("Upload failed: " + storageErr.message);
+
+            const { data: urlData } = supabaseClient.storage.from('assessor-maps').getPublicUrl(storageData.path);
+            const { data: insertedData } = await supabaseClient.from('maps_registry').insert([{ map_name: file.name, file_url: urlData.publicUrl }]).select();
+            pdfUpload.value = ''; 
+            if (insertedData && insertedData.length > 0) loadActiveMap(insertedData[0]);
+        });
+
+        async function fetchMapsDirectory() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
+
+            const { data, error } = await supabaseClient.from('maps_registry').select('*').order('created_at', { ascending: false });
+            if (error) return console.error(error);
+            mapList.innerHTML = '';
+            if (data.length === 0) { mapList.innerHTML = '<p class="text-xs text-slate-300/60 italic p-2">No maps uploaded yet.</p>'; return; }
+
+            data.forEach(map => {
+                const mapRow = document.createElement('div');
+                mapRow.className = `group flex justify-between items-center px-2 py-1.5 rounded-md transition ${currentMapId === map.id ? 'bg-[#1985a1] text-white' : 'text-slate-200 hover:bg-black/10'}`;
+                const btn = document.createElement('button');
+                btn.className = 'flex-1 text-left text-xs font-medium truncate block cursor-pointer pr-2';
+                btn.innerText = `📄 ${map.map_name}`;
+                btn.onclick = () => loadActiveMap(map);
+                mapRow.appendChild(btn);
+
+                const delBtn = document.createElement('button');
+                delBtn.className = `opacity-0 group-hover:opacity-100 p-1 hover:bg-red-700/50 rounded text-red-300 hover:text-red-100 transition text-xs cursor-pointer font-bold`;
+                delBtn.innerHTML = 'Delete';
+                delBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    const urlParts = map.file_url.split('/assessor-maps/');
+                    if (urlParts.length > 1) await supabaseClient.storage.from('assessor-maps').remove([urlParts[1]]);
+                    await supabaseClient.from('maps_registry').delete().eq('id', map.id);
+                    if (currentMapId === map.id) location.reload();
+                };
+                mapRow.appendChild(delBtn); mapList.appendChild(mapRow);
+            });
+        }
+
+        async function loadActiveMap(mapObj) {
+            currentMapId = mapObj.id;
+            fetchMapsDirectory(); 
+            placeholderText.innerHTML = "<p class='text-[#1985a1] font-semibold animate-pulse'>Loading Map...</p>";
+            mapWrapper.classList.add('hidden'); zoomControls.classList.add('hidden'); drawingToolbar.classList.add('hidden'); printControlContainer.classList.add('hidden');
+            hideIssuePopover();
+
+            if (panzoomInstance) panzoomInstance.destroy();
+
+            try {
+                const pdf = await pdfjsLib.getDocument(mapObj.file_url).promise;
+                const page = await pdf.getPage(1);
+                const viewport = page.getViewport({ scale: 2.5 }); 
+                const context = pdfCanvas.getContext('2d');
+                pdfCanvas.height = viewport.height; pdfCanvas.width = viewport.width;
+                await page.render({ canvasContext: context, viewport: viewport }).promise;
+                
+                placeholderText.classList.add('hidden');
+                mapWrapper.classList.remove('hidden'); zoomControls.classList.remove('hidden'); drawingToolbar.classList.remove('hidden'); printControlContainer.classList.remove('hidden');
+
+                panzoomInstance = Panzoom(panzoomContainer, { maxScale: 6, minScale: 0.5, canvas: true });
+                
+                panzoomContainer.parentElement.addEventListener('wheel', (e) => {
+                    if (!panzoomInstance) return;
+                    e.preventDefault();
+                    panzoomInstance.zoomWithWheel(e);
+                    adjustPinScaling();
+                    hideIssuePopover();
+                });
+
+                panzoomContainer.addEventListener('panzoomchange', () => { adjustPinScaling(); hideIssuePopover(); });
+                document.getElementById('tool-view').click();
+                fetchPins();
+            } catch (err) {
+                placeholderText.innerHTML = `<p class='text-red-400'>Error loading resource asset frame.</p>`;
+                console.error(err);
+            }
+        }
+
+        async function togglePinStatus(pinId, currentStatus) {
+            const nextStatus = currentStatus === 'fixed' ? 'open' : 'fixed';
+            await supabaseClient.from('map_errors').update({ status: nextStatus }).eq('id', pinId);
+        }
+
+        async function handlePinClick(e, err) {
+            e.stopPropagation();
+            triggerIssuePopover(e, err);
+        }
+
+        async function fetchPins() {
+            if (!currentMapId) return;
+            const { data, error } = await supabaseClient.from('map_errors').select('*').eq('map_id', currentMapId).order('error_number', { ascending: true });
+            if (!error) { activeErrors = data; renderUI(); }
+        }
+
+        function renderUI() {
+            dotsContainer.innerHTML = '';
+            sidebarList.innerHTML = '';
+            
+            const elementsToRemove = vectorDrawingOverlay.querySelectorAll('line');
+            elementsToRemove.forEach(el => el.remove());
+
+            if (activeErrors.length === 0) {
+                sidebarList.innerHTML = '<p class="text-sm text-gray-400 italic">No Issues Logged Yet</p>';
+                return;
+            }
+
+            let inputToFocus = null; 
+
+            activeErrors.forEach((err) => {
+                const pinNumber = err.error_number || '?';
+                const isFixed = err.status === 'fixed';
+                
+                const colorHex = isFixed ? '#059669' : '#dc2626';
+                const dotColorClass = isFixed ? 'bg-emerald-600' : 'bg-red-600';
+                const cardColorClass = isFixed ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200';
+                const badgeColorClass = isFixed ? 'bg-emerald-600' : 'bg-red-600';
+
+                let showOnMap = true;
+                if (!isFixed && !pinsVisible) showOnMap = false;
+                if (isFixed && !fixedPinsVisible) showOnMap = false;
+
+                if (showOnMap) {
+                    if (err.tool_type === 'line' || err.tool_type === 'dash' || err.tool_type === 'arrow') {
+                        const coords = JSON.parse(err.geometry_data);
+                        if (coords) {
+                            const svgLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                            svgLine.setAttribute('class', 'svg-markup-line cursor-pointer pointer-events-auto');
+                            svgLine.setAttribute('x1', `${coords.x1}%`); svgLine.setAttribute('y1', `${coords.y1}%`);
+                            svgLine.setAttribute('x2', `${coords.x2}%`); svgLine.setAttribute('y2', `${coords.y2}%`);
+                            svgLine.setAttribute('stroke', colorHex); svgLine.setAttribute('stroke-width', '3');
+                            
+                            if (err.tool_type === 'dash') svgLine.setAttribute('stroke-dasharray', '6,6');
+                            if (err.tool_type === 'arrow') svgLine.setAttribute('marker-end', isFixed ? 'url(#arrowhead-fixed)' : 'url(#arrowhead)');
+                            
+                            svgLine.addEventListener('click', (e) => handlePinClick(e, err));
+                            vectorDrawingOverlay.appendChild(svgLine);
+                            
+                            const startMarker = document.createElement('div');
+                            startMarker.className = `error-dot absolute ${dotColorClass} text-white font-bold rounded-full flex items-center justify-center shadow-md pointer-events-auto cursor-pointer`;
+                            startMarker.style.left = `${coords.x1}%`; startMarker.style.top = `${coords.y1}%`;
+                            startMarker.innerText = pinNumber;
+                            startMarker.onclick = (e) => handlePinClick(e, err);
+                            dotsContainer.appendChild(startMarker);
+                        }
+                    } else if (err.tool_type === 'text') {
+                        const labelText = err.description || 'Type text...';
+                        const textLabel = document.createElement('div');
+                        textLabel.className = `map-text-annotation absolute font-medium rounded shadow whitespace-nowrap flex items-center h-[8px] py-0 pl-0 pr-1 space-x-1 pointer-events-auto cursor-pointer transition ${isFixed ? 'text-emerald-800 border-emerald-300 bg-emerald-50' : 'text-red-800 border-red-300 bg-red-50'}`;
+                        textLabel.style.left = `${err.x_percent}%`; 
+                        textLabel.style.top = `${err.y_percent}%`;
+                        
+                        textLabel.innerHTML = `
+                            <span class="${badgeColorClass} text-white rounded-full w-[14px] h-[14px] text-[8px] flex items-center justify-center font-bold shrink-0 m-0">${pinNumber}</span>
+                            <span class="font-bold tracking-tight text-[8px] self-center pl-1 leading-none">${labelText}</span>
+                        `;
+                        textLabel.onclick = (e) => handlePinClick(e, err);
+                        dotsContainer.appendChild(textLabel);
+                    } else {
+                        const dot = document.createElement('div');
+                        dot.className = `error-dot absolute ${dotColorClass} text-white font-bold rounded-full flex items-center justify-center shadow-lg pointer-events-auto cursor-pointer`;
+                        dot.style.left = `${err.x_percent}%`; dot.style.top = `${err.y_percent}%`;
+                        dot.innerText = pinNumber;
+                        dot.onclick = (e) => handlePinClick(e, err);
+                        dotsContainer.appendChild(dot);
+                    }
+                }
+
+                const item = document.createElement('div');
+                item.className = `p-3 ${cardColorClass} border rounded-lg shadow-sm text-sm flex flex-col relative group transition duration-150`;
+                
+                let typePrefix = 'Point';
+                if (err.tool_type === 'line') typePrefix = 'Line';
+                if (err.tool_type === 'dash') typePrefix = 'Dash';
+                if (err.tool_type === 'arrow') typePrefix = 'Arrow';
+                if (err.tool_type === 'text') typePrefix = 'Map Text';
+
+                const defaultOptionSelected = (!err.gis_layer) ? 'selected' : '';
+                let layerOptionsHTML = `<option value="" ${defaultOptionSelected}>--- Select Layer (Unassigned) ---</option>`;
+                
+                GIS_LAYERS_REGISTRY.forEach(layerName => {
+                    const isSelected = err.gis_layer === layerName ? 'selected' : '';
+                    layerOptionsHTML += `<option value="${layerName}" ${isSelected}>${layerName}</option>`;
+                });
+
+                const displayCreator = err.created_by ? `<span class="text-[10px] font-medium text-slate-500 italic">by ${err.created_by}</span>` : '';
+
+                item.innerHTML = `
+                    <div class="flex justify-between items-start mb-1.5">
+                        <div class="flex items-center space-x-1.5 flex-1 cursor-pointer" id="status-badge-zone-${err.id}">
+                            <span class="${badgeColorClass} text-white rounded-full w-5 h-5 text-xs flex items-center justify-center font-bold">${pinNumber}</span>
+                            <span class="text-[9px] font-bold text-slate-500 bg-slate-200/80 px-1 rounded">${typePrefix}</span>
+                            <span class="text-[10px] font-bold tracking-wide uppercase px-1 py-0.5 rounded ${isFixed ? 'bg-emerald-200 text-emerald-800' : 'bg-red-200 text-red-800'}">${err.status}</span>
+                            ${displayCreator}
+                        </div>
+                        <button class="delete-pin-btn text-xs text-gray-400 hover:text-red-600 font-bold transition opacity-0 group-hover:opacity-100 cursor-pointer p-0.5 rounded hover:bg-gray-200/50">Delete</button>
+                    </div>
+                    <div class="w-full mt-1 space-y-2">
+                        <input type="text" id="input-${err.id}" class="w-full border border-slate-300 rounded px-2 py-1 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 select-text" placeholder="${err.tool_type === 'text' ? 'Type text to overlay on map...' : 'Type error description and press Enter...'}" value="${err.description || ''}">
+                        ${err.tool_type === 'text' ? `
+                            <div class="flex flex-col space-y-0.5">
+                                <label class="text-[10px] font-bold text-slate-400 tracking-tight uppercase">Annotation Layer</label>
+                                <select id="layer-select-${err.id}" class="w-full bg-slate-100 border border-slate-300 rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 focus:outline-none cursor-pointer">
+                                    ${layerOptionsHTML}
+                                </select>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                item.querySelector(`#status-badge-zone-${err.id}`).addEventListener('click', () => togglePinStatus(err.id, err.status));
+                const inlineInput = item.querySelector(`#input-${err.id}`);
+                
+                if (err.tool_type === 'text') {
+                    inlineInput.addEventListener('input', (e) => {
+                        const textAnnotationElement = dotsContainer.querySelector(`div[style*="left: ${err.x_percent}%"] span.font-bold:not([class*="badge"])`);
+                        if (textAnnotationElement) { textAnnotationElement.innerText = e.target.value || 'Type text...'; }
+                    });
+
+                    const layerDropdown = item.querySelector(`#layer-select-${err.id}`);
+                    layerDropdown.addEventListener('change', (e) => { saveInlineLayer(err.id, e.target.value); });
+                }
+
+                inlineInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') inlineInput.blur(); });
+                inlineInput.addEventListener('blur', () => saveInlineDescription(err.id, inlineInput.value));
+
+                if (err.id === newlyCreatedPinId) inputToFocus = inlineInput;
+
+                item.querySelector('.delete-pin-btn').addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    await supabaseClient.from('map_errors').delete().eq('id', err.id);
+                });
+
+                sidebarList.appendChild(item);
+            });
+
+            adjustPinScaling();
+
+            if (inputToFocus) {
+                setTimeout(() => {
+                    inputToFocus.focus();
+                    if (activeTool === 'text') inputToFocus.select();
+                    newlyCreatedPinId = null; 
+                }, 50);
+            }
+        }
+
+        supabaseClient.channel('global-sync')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'maps_registry' }, () => fetchMapsDirectory())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'map_errors' }, () => fetchPins())
+            .subscribe();
+    </script>
+</body>
+</html>

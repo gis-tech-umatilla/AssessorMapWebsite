@@ -292,6 +292,7 @@
         const signOutBtn = document.getElementById('signOutBtn');
 
         let currentActivePopoverId = null;
+        let realtimeChannel = null;
 
         initAuthCheck();
 
@@ -319,6 +320,7 @@
                     userBadge.innerText = userEmail;
                     authErrorMsg.classList.add('hidden');
                     fetchMapsDirectory();
+                    initializeRealtimeSync();
                 } else {
                     authGate.classList.remove('hidden');
                     authErrorMsg.innerText = `Access Denied: ${userEmail} is not authorized to use this tool.`;
@@ -328,7 +330,19 @@
             } else {
                 authGate.classList.remove('hidden');
                 userBadge.innerText = "";
+                if (realtimeChannel) {
+                    supabaseClient.removeChannel(realtimeChannel);
+                    realtimeChannel = null;
+                }
             }
+        }
+
+        function initializeRealtimeSync() {
+            if (realtimeChannel) return;
+            realtimeChannel = supabaseClient.channel('global-sync')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'maps_registry' }, () => fetchMapsDirectory())
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'map_errors' }, () => fetchPins())
+                .subscribe();
         }
 
         googleSignInBtn.addEventListener('click', async () => {
@@ -390,7 +404,6 @@
         const printMapBtn = document.getElementById('printMapBtn');
         const isolatedPrintContainer = document.getElementById('isolatedPrintContainer');
 
-        // Floating Popover Specific Elements
         const floatingPopover = document.getElementById('floatingPopover');
         const popoverBadge = document.getElementById('popoverBadge');
         const popoverTitle = document.getElementById('popoverTitle');
@@ -419,7 +432,6 @@
 
         // FLOATING CONTEXT POPUP ENGINE
         function triggerIssuePopover(clickEvent, err) {
-            // Check if clicking the currently open popover target to toggle it closed
             if (currentActivePopoverId === err.id && !floatingPopover.classList.contains('hidden')) {
                 hideIssuePopover();
                 return;
@@ -433,7 +445,6 @@
             if (err.tool_type === 'arrow') typeLabel = 'Arrow';
             if (err.tool_type === 'text') typeLabel = 'Text';
 
-            // Store active popover reference identifier
             currentActivePopoverId = err.id;
 
             popoverBadge.className = `rounded-full w-4 h-4 text-[10px] flex items-center justify-center font-bold ${isFixed ? 'bg-emerald-600' : 'bg-red-600'}`;
@@ -497,9 +508,7 @@
 
         closePopoverBtn.addEventListener('click', hideIssuePopover);
         
-        // Smart backdrop closure logic
         document.getElementById('mapViewport').addEventListener('click', (e) => {
-            // Dismiss popover card only if click falls outside both popover boundary and vector overlays
             if (!floatingPopover.contains(e.target) && e.target.id !== 'floatingPopover' && e.target.id === 'vectorDrawingOverlay') {
                 hideIssuePopover();
             }
@@ -590,6 +599,14 @@
                 
                 btn.className = "tool-btn px-3 py-1.5 bg-[#1985a1] text-white text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition shadow-md";
                 
+                if (panzoomInstance) {
+                    if (activeTool === 'view') {
+                        panzoomInstance.setOptions({ disablePan: false, disableZoom: false });
+                    } else {
+                        panzoomInstance.setOptions({ disablePan: true, disableZoom: false });
+                    }
+                }
+
                 if (activeTool === 'view') { 
                     toolHint.innerText = "Viewing / Pan-Zoom";
                     vectorDrawingOverlay.style.cursor = 'grab';
@@ -608,7 +625,7 @@
 
         let lastClickTime = 0;
 
-vectorDrawingOverlay.addEventListener('click', async (e) => {
+        vectorDrawingOverlay.addEventListener('click', async (e) => {
             if (!currentMapId || activeTool === 'view') return;
 
             const currentTime = Date.now();
@@ -618,14 +635,12 @@ vectorDrawingOverlay.addEventListener('click', async (e) => {
             }
             lastClickTime = currentTime; 
 
-            // Calculate exact click percentages relative to the ACTUAL canvas coordinates, ignoring pan/zoom skewing
             const rect = pdfCanvas.getBoundingClientRect();
             if (rect.width === 0 || rect.height === 0) return;
             
             const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
             const yPercent = ((e.clientY - rect.top) / rect.height) * 100;
 
-            // Fail-safe session fallback checking to ignore background channel drop errors
             let emailPrefix = 'staff';
             try {
                 const { data: authSession } = await supabaseClient.auth.getSession();
@@ -794,6 +809,11 @@ vectorDrawingOverlay.addEventListener('click', async (e) => {
                 placeholderText.classList.add('hidden');
                 mapWrapper.classList.remove('hidden'); zoomControls.classList.remove('hidden'); drawingToolbar.classList.remove('hidden'); printControlContainer.classList.remove('hidden');
 
+                // Explicitly sync structural layout block properties immediately upon rendering canvas components
+                const wrapper = document.getElementById('mapWrapper');
+                wrapper.style.width = `${pdfCanvas.width}px`;
+                wrapper.style.height = `${pdfCanvas.height}px`;
+
                 panzoomInstance = Panzoom(panzoomContainer, { maxScale: 6, minScale: 0.5, canvas: true });
                 
                 panzoomContainer.parentElement.addEventListener('wheel', (e) => {
@@ -833,7 +853,6 @@ vectorDrawingOverlay.addEventListener('click', async (e) => {
             dotsContainer.innerHTML = '';
             sidebarList.innerHTML = '';
             
-            // Clear out all old SVG elements completely
             const linesToRemove = vectorDrawingOverlay.querySelectorAll('line');
             linesToRemove.forEach(el => el.remove());
 
@@ -842,9 +861,8 @@ vectorDrawingOverlay.addEventListener('click', async (e) => {
                 return;
             }
 
-            // Sync the internal SVG dimensions directly to the physical size of the PDF canvas
-            const canvasWidth = pdfCanvas.offsetWidth || pdfCanvas.width;
-            const canvasHeight = pdfCanvas.offsetHeight || pdfCanvas.height;
+            const canvasWidth = pdfCanvas.width;
+            const canvasHeight = pdfCanvas.height;
             
             vectorDrawingOverlay.setAttribute('viewBox', `0 0 ${canvasWidth} ${canvasHeight}`);
 
@@ -867,7 +885,6 @@ vectorDrawingOverlay.addEventListener('click', async (e) => {
                     if (err.tool_type === 'line' || err.tool_type === 'dash' || err.tool_type === 'arrow') {
                         const coords = JSON.parse(err.geometry_data);
                         if (coords) {
-                            // Convert storage percentages back to raw pixel units for the SVG viewBox
                             const pixelX1 = (coords.x1 / 100) * canvasWidth;
                             const pixelY1 = (coords.y1 / 100) * canvasHeight;
                             const pixelX2 = (coords.x2 / 100) * canvasWidth;
@@ -888,7 +905,6 @@ vectorDrawingOverlay.addEventListener('click', async (e) => {
                             svgLine.addEventListener('click', (e) => handlePinClick(e, err));
                             vectorDrawingOverlay.appendChild(svgLine);
                             
-                            // Place the anchor numbered marker right at the starting track point
                             const startMarker = document.createElement('div');
                             startMarker.className = `error-dot absolute ${dotColorClass} text-white font-bold rounded-full flex items-center justify-center shadow-md pointer-events-auto cursor-pointer`;
                             startMarker.style.left = `${coords.x1}%`; 
@@ -911,7 +927,6 @@ vectorDrawingOverlay.addEventListener('click', async (e) => {
                         textLabel.onclick = (e) => handlePinClick(e, err);
                         dotsContainer.appendChild(textLabel);
                     } else {
-                        // Standard singular pin points
                         const dot = document.createElement('div');
                         dot.className = `error-dot absolute ${dotColorClass} text-white font-bold rounded-full flex items-center justify-center shadow-lg pointer-events-auto cursor-pointer`;
                         dot.style.left = `${err.x_percent}%`; 
@@ -922,7 +937,6 @@ vectorDrawingOverlay.addEventListener('click', async (e) => {
                     }
                 }
 
-                // Build the sidebar cards
                 const item = document.createElement('div');
                 item.className = `p-3 ${cardColorClass} border rounded-lg shadow-sm text-sm flex flex-col relative group transition duration-150`;
                 
@@ -1001,11 +1015,6 @@ vectorDrawingOverlay.addEventListener('click', async (e) => {
                 }, 50);
             }
         }
-
-        supabaseClient.channel('global-sync')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'maps_registry' }, () => fetchMapsDirectory())
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'map_errors' }, () => fetchPins())
-            .subscribe();
     </script>
 </body>
 </html>

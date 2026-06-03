@@ -833,13 +833,20 @@ vectorDrawingOverlay.addEventListener('click', async (e) => {
             dotsContainer.innerHTML = '';
             sidebarList.innerHTML = '';
             
-            const elementsToRemove = vectorDrawingOverlay.querySelectorAll('line');
-            elementsToRemove.forEach(el => el.remove());
+            // Clear out all old SVG elements completely
+            const linesToRemove = vectorDrawingOverlay.querySelectorAll('line');
+            linesToRemove.forEach(el => el.remove());
 
             if (activeErrors.length === 0) {
                 sidebarList.innerHTML = '<p class="text-sm text-gray-400 italic">No Issues Logged Yet</p>';
                 return;
             }
+
+            // Sync the internal SVG dimensions directly to the physical size of the PDF canvas
+            const canvasWidth = pdfCanvas.offsetWidth || pdfCanvas.width;
+            const canvasHeight = pdfCanvas.offsetHeight || pdfCanvas.height;
+            
+            vectorDrawingOverlay.setAttribute('viewBox', `0 0 ${canvasWidth} ${canvasHeight}`);
 
             let inputToFocus = null; 
 
@@ -860,11 +867,20 @@ vectorDrawingOverlay.addEventListener('click', async (e) => {
                     if (err.tool_type === 'line' || err.tool_type === 'dash' || err.tool_type === 'arrow') {
                         const coords = JSON.parse(err.geometry_data);
                         if (coords) {
+                            // Convert storage percentages back to raw pixel units for the SVG viewBox
+                            const pixelX1 = (coords.x1 / 100) * canvasWidth;
+                            const pixelY1 = (coords.y1 / 100) * canvasHeight;
+                            const pixelX2 = (coords.x2 / 100) * canvasWidth;
+                            const pixelY2 = (coords.y2 / 100) * canvasHeight;
+
                             const svgLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                             svgLine.setAttribute('class', 'svg-markup-line cursor-pointer pointer-events-auto');
-                            svgLine.setAttribute('x1', `${coords.x1}%`); svgLine.setAttribute('y1', `${coords.y1}%`);
-                            svgLine.setAttribute('x2', `${coords.x2}%`); svgLine.setAttribute('y2', `${coords.y2}%`);
-                            svgLine.setAttribute('stroke', colorHex); svgLine.setAttribute('stroke-width', '3');
+                            svgLine.setAttribute('x1', pixelX1); 
+                            svgLine.setAttribute('y1', pixelY1);
+                            svgLine.setAttribute('x2', pixelX2); 
+                            svgLine.setAttribute('y2', pixelY2);
+                            svgLine.setAttribute('stroke', colorHex); 
+                            svgLine.setAttribute('stroke-width', '3');
                             
                             if (err.tool_type === 'dash') svgLine.setAttribute('stroke-dasharray', '6,6');
                             if (err.tool_type === 'arrow') svgLine.setAttribute('marker-end', isFixed ? 'url(#arrowhead-fixed)' : 'url(#arrowhead)');
@@ -872,9 +888,11 @@ vectorDrawingOverlay.addEventListener('click', async (e) => {
                             svgLine.addEventListener('click', (e) => handlePinClick(e, err));
                             vectorDrawingOverlay.appendChild(svgLine);
                             
+                            // Place the anchor numbered marker right at the starting track point
                             const startMarker = document.createElement('div');
                             startMarker.className = `error-dot absolute ${dotColorClass} text-white font-bold rounded-full flex items-center justify-center shadow-md pointer-events-auto cursor-pointer`;
-                            startMarker.style.left = `${coords.x1}%`; startMarker.style.top = `${coords.y1}%`;
+                            startMarker.style.left = `${coords.x1}%`; 
+                            startMarker.style.top = `${coords.y1}%`;
                             startMarker.innerText = pinNumber;
                             startMarker.onclick = (e) => handlePinClick(e, err);
                             dotsContainer.appendChild(startMarker);
@@ -893,15 +911,18 @@ vectorDrawingOverlay.addEventListener('click', async (e) => {
                         textLabel.onclick = (e) => handlePinClick(e, err);
                         dotsContainer.appendChild(textLabel);
                     } else {
+                        // Standard singular pin points
                         const dot = document.createElement('div');
                         dot.className = `error-dot absolute ${dotColorClass} text-white font-bold rounded-full flex items-center justify-center shadow-lg pointer-events-auto cursor-pointer`;
-                        dot.style.left = `${err.x_percent}%`; dot.style.top = `${err.y_percent}%`;
+                        dot.style.left = `${err.x_percent}%`; 
+                        dot.style.top = `${err.y_percent}%`;
                         dot.innerText = pinNumber;
                         dot.onclick = (e) => handlePinClick(e, err);
                         dotsContainer.appendChild(dot);
                     }
                 }
 
+                // Build the sidebar cards
                 const item = document.createElement('div');
                 item.className = `p-3 ${cardColorClass} border rounded-lg shadow-sm text-sm flex flex-col relative group transition duration-150`;
                 

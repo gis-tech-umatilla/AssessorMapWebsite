@@ -811,8 +811,11 @@
 
                 // Explicitly sync structural layout block properties immediately upon rendering canvas components
                 const wrapper = document.getElementById('mapWrapper');
-                wrapper.style.width = `${pdfCanvas.width}px`;
-                wrapper.style.height = `${pdfCanvas.height}px`;
+                const renderWidth = pdfCanvas.offsetWidth || pdfCanvas.clientWidth || (pdfCanvas.width / 2.5);
+                const renderHeight = pdfCanvas.offsetHeight || pdfCanvas.clientHeight || (pdfCanvas.height / 2.5);
+
+                wrapper.style.width = `${renderWidth}px`;
+                wrapper.style.height = `${renderHeight}px`;
 
                 panzoomInstance = Panzoom(panzoomContainer, { maxScale: 6, minScale: 0.5, canvas: true });
                 

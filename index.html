@@ -969,7 +969,7 @@
                         <button class="delete-pin-btn text-xs text-gray-400 hover:text-red-600 font-bold transition opacity-0 group-hover:opacity-100 cursor-pointer p-0.5 rounded hover:bg-gray-200/50">Delete</button>
                     </div>
                     <div class="w-full mt-1 space-y-2">
-                        <input type="text" id="input-${err.id}" class="w-full border border-slate-300 rounded px-2 py-1 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 select-text" placeholder="${err.tool_type === 'text' ? 'Type text to overlay on map...' : 'Type error description and press Enter...'}" value="${err.description || ''}">
+                    <textarea id="input-${err.id}" rows="1" oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px';" class="w-full border border-slate-300 rounded px-2 py-1 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 select-text resize-none overflow-hidden block" placeholder="${err.tool_type === 'text' ? 'Type text to overlay on map...' : 'Type error description...'}" style="height: auto; min-height: 28px;">${err.description || ''}</textarea>
                         ${err.tool_type === 'text' ? `
                             <div class="flex flex-col space-y-0.5">
                                 <label class="text-[10px] font-bold text-slate-400 tracking-tight uppercase">Annotation Layer</label>
@@ -1004,7 +1004,13 @@
                     await supabaseClient.from('map_errors').delete().eq('id', err.id);
                 });
 
-                sidebarList.appendChild(item);
+            sidebarList.appendChild(item);
+            });
+
+            // Force all textareas to expand to fit their initial text content down the column
+            document.querySelectorAll('#sidebarList textarea').forEach(textarea => {
+                textarea.style.height = 'auto';
+                textarea.style.height = textarea.scrollHeight + 'px';
             });
 
             adjustPinScaling();

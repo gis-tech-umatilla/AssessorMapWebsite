@@ -33,7 +33,7 @@
             }
 
             /* Strip the active web application layout environment completely */
-            #authGate, header, aside:first-of-type, #drawingToolbar, #zoomControls, #printControlContainer, aside:last-of-type, #floatingPopover {
+            #authGate, header, aside:first-of-type, #drawingToolbar, #zoomControls, aside:last-of-type, #floatingPopover {
                 display: none !important;
             }
 
@@ -201,19 +201,13 @@
                 <button id="zoomOut" class="px-3 py-1 bg-black/20 hover:bg-black/30 rounded font-bold cursor-pointer">-</button>
                 <button id="zoomReset" class="px-2 py-1 bg-black/20 hover:bg-black/40 rounded text-xs cursor-pointer">Reset View</button>
             </div>
-
-            <div class="absolute bottom-4 right-4 z-40 hidden" id="printControlContainer">
-                <button id="printMapBtn" class="flex items-center space-x-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl shadow-2xl border border-white/10 cursor-pointer transition duration-150">
-                    <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.8A2.25 2.25 0 0 1 9 11.55h6a2.25 2.25 0 0 1 2.28 2.25v5.1a2.25 2.25 0 0 1-2.28 2.25H9a2.25 2.25 0 0 1-2.72-2.25v-5.1zM18 8.25V5.1A2.25 2.25 0 0 0 15.72 3H8.28A2.25 2.25 0 0 0 6 5.1v3.15m12 0A2.25 2.25 0 0 1 20.25 10.5v3.15a2.25 2.25 0 0 1-2.25 2.25H4.05a2.25 2.25 0 0 1-2.25-2.25V10.5A2.25 2.25 0 0 1 4.05 8.25h13.95zM16.5 11.25h.008v.008h-.008v-.008z"></path>
-                    </svg>
-                    <span>Print Map and Issue List</span>
-                </button>
-            </div>
-
             <div id="panzoomContainer" class="inline-block relative">
                 <div id="mapWrapper" class="relative hidden select-none">
-                    <canvas id="pdfCanvas" class="shadow-2xl max-h-[85vh] w-auto bg-white"></canvas>
+                    <div id="canvasRowContainer" class="flex flex-row gap-2 bg-white shadow-2xl max-w-full lg:max-w-[78vw]">
+                        <canvas id="pdfCanvas" class="h-auto max-h-[75vh] min-w-0 object-contain bg-white"></canvas>
+                        <canvas id="pdfCanvas2" class="h-auto max-h-[75vh] min-w-0 object-contain bg-white hidden"></canvas>
+                    </div>
+                    
                     <svg id="vectorDrawingOverlay" class="absolute inset-0 z-10 w-full h-full cursor-crosshair pointer-events-auto">
                         <defs>
                             <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
@@ -399,8 +393,6 @@
         const toggleFixedVisibilityBtn = document.getElementById('toggleFixedVisibility');
         const fixedVisibilityText = document.getElementById('fixedVisibilityText');
         const toolHint = document.getElementById('toolHint');
-        const printControlContainer = document.getElementById('printControlContainer');
-        const printMapBtn = document.getElementById('printMapBtn');
         const isolatedPrintContainer = document.getElementById('isolatedPrintContainer');
 
         const floatingPopover = document.getElementById('floatingPopover');
@@ -476,6 +468,8 @@
                 targetTopY = clickEvent.clientY - viewportRect.top;
             }
 
+            floatingPopover.style.left = `${targetCenterX}px`;
+            floatingPopover.style.top = `${targetTopY}px`;
             floatingPopover.classList.remove('hidden');
 
             const cardWidth = floatingPopover.offsetWidth || 256;
@@ -513,78 +507,6 @@
             }
         });
 
-        // RE-COMPILED PRINT ROUTINE SYSTEM
-        printMapBtn.addEventListener('click', () => {
-            const activeFilteredErrors = activeErrors.filter(err => {
-                const isFixed = err.status === 'fixed';
-                if (!isFixed && !pinsVisible) return false;
-                if (isFixed && !fixedPinsVisible) return false;
-                return true;
-            });
-
-            const sourceMapContainer = document.getElementById('panzoomContainer');
-            const mapClone = sourceMapContainer.cloneNode(true);
-            
-            mapClone.style.transform = 'none';
-            mapClone.style.transformOrigin = 'initial';
-            
-            const sourceCanvas = document.getElementById('pdfCanvas');
-            const targetCanvas = mapClone.querySelector('#pdfCanvas');
-            if (sourceCanvas && targetCanvas) {
-                targetCanvas.width = sourceCanvas.width;
-                targetCanvas.height = sourceCanvas.height;
-                const destCtx = targetCanvas.getContext('2d');
-                destCtx.drawImage(sourceCanvas, 0, 0);
-            }
-
-            let issuesHTML = `
-                <div class="print-columns-layout">
-                    <div class="print-section-title">Issue List</div>
-            `;
-
-            activeFilteredErrors.forEach((err) => {
-                const pinNum = err.error_number || '?';
-                let typeLabel = 'Point';
-                if (err.tool_type === 'line') typeLabel = 'Line';
-                if (err.tool_type === 'dash') typeLabel = 'Dash';
-                if (err.tool_type === 'arrow') typeLabel = 'Arrow';
-                if (err.tool_type === 'text') typeLabel = 'Map Text';
-
-                const creatorTag = err.created_by ? `(${err.created_by})` : '';
-                const inputEl = document.getElementById(`input-${err.id}`);
-                const rawDescriptionValue = inputEl ? inputEl.value : (err.description || '');
-
-                issuesHTML += `
-                    <div class="print-issue-row">
-                        <div class="print-meta-label">#${pinNum} ${typeLabel} ${creatorTag}</div>
-                        <div class="print-description-text">${rawDescriptionValue.trim() || 'No description provided.'}</div>
-                    </div>
-                `;
-            });
-
-            if (activeFilteredErrors.length === 0) {
-                issuesHTML += `
-                    <div class="print-issue-row">
-                        <div class="print-description-text" style="font-style:italic; color:#64748b;">No active items logged matching current filtering states.</div>
-                    </div>
-                `;
-            }
-
-            issuesHTML += `</div>`; 
-
-            isolatedPrintContainer.innerHTML = '';
-            
-            const printMapWrapper = document.createElement('div');
-            printMapWrapper.className = 'print-map-capture-wrapper';
-            printMapWrapper.appendChild(mapClone);
-            
-            isolatedPrintContainer.appendChild(printMapWrapper);
-            isolatedPrintContainer.insertAdjacentHTML('beforeend', issuesHTML);
-
-            window.print();
-            isolatedPrintContainer.innerHTML = '';
-        });
-
         document.querySelectorAll('.tool-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 document.querySelectorAll('.tool-btn').forEach(b => b.className = "tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition");
@@ -620,7 +542,6 @@
                     vectorDrawingOverlay.style.cursor = 'crosshair';
                 }
                 
-                // Re-render the sidebar cards to instantly show/hide Delete buttons
                 renderUI(); 
             });
         });
@@ -637,7 +558,7 @@
             }
             lastClickTime = currentTime; 
 
-            const rect = pdfCanvas.getBoundingClientRect();
+            const rect = mapWrapper.getBoundingClientRect();
             if (rect.width === 0 || rect.height === 0) return;
             
             const xPercent = ((e.clientX - rect.left) / rect.width) * 100;
@@ -794,33 +715,78 @@
         async function loadActiveMap(mapObj) {
             currentMapId = mapObj.id;
             fetchMapsDirectory(); 
-            placeholderText.innerHTML = "<p class='text-[#1985a1] font-semibold animate-pulse'>Loading Map...</p>";
-            mapWrapper.classList.add('hidden'); zoomControls.classList.add('hidden'); drawingToolbar.classList.add('hidden'); printControlContainer.classList.add('hidden');
+            placeholderText.innerHTML = "<p class='text-[#1985a1] font-semibold animate-pulse'>Loading Map Sheets...</p>";
+            mapWrapper.classList.add('hidden'); zoomControls.classList.add('hidden'); drawingToolbar.classList.add('hidden');
             hideIssuePopover();
 
             if (panzoomInstance) panzoomInstance.destroy();
 
             try {
                 const pdf = await pdfjsLib.getDocument(mapObj.file_url).promise;
-                const page = await pdf.getPage(1);
-                const viewport = page.getViewport({ scale: 2.5 }); 
-                const context = pdfCanvas.getContext('2d');
-                pdfCanvas.height = viewport.height; pdfCanvas.width = viewport.width;
-                await page.render({ canvasContext: context, viewport: viewport }).promise;
+                
+                // Render Sheet 1
+                const page1 = await pdf.getPage(1);
+                const viewport1 = page1.getViewport({ scale: 2.5 }); 
+                const context1 = pdfCanvas.getContext('2d');
+                pdfCanvas.height = viewport1.height; 
+                pdfCanvas.width = viewport1.width;
+                await page1.render({ canvasContext: context1, viewport: viewport1 }).promise;
+
+                const canvas2El = document.getElementById('pdfCanvas2');
+
+                // Render Sheet 2 if it exists
+                if (pdf.numPages >= 2) {
+                    canvas2El.classList.remove('hidden');
+                    const page2 = await pdf.getPage(2);
+                    const viewport2 = page2.getViewport({ scale: 2.5 });
+                    const context2 = canvas2El.getContext('2d');
+                    canvas2El.height = viewport2.height;
+                    canvas2El.width = viewport2.width;
+                    await page2.render({ canvasContext: context2, viewport: viewport2 }).promise;
+                } else {
+                    canvas2El.classList.add('hidden');
+                }
                 
                 placeholderText.classList.add('hidden');
-                mapWrapper.classList.remove('hidden'); zoomControls.classList.remove('hidden'); drawingToolbar.classList.remove('hidden'); printControlContainer.classList.remove('hidden');
+                mapWrapper.classList.remove('hidden'); 
+                zoomControls.classList.remove('hidden'); 
+                drawingToolbar.classList.remove('hidden'); 
 
-                // Explicitly sync structural layout block properties immediately upon rendering canvas components
+                // Measure layout bounds directly from the row container to respect CSS max-width limits
+                const rowContainer = document.getElementById('canvasRowContainer');
+                const totalWidth = rowContainer.offsetWidth || rowContainer.clientWidth;
+                const maxHeight = rowContainer.offsetHeight || rowContainer.clientHeight;
+
+                // Explicitly sync the drawing wrapper dimensions with the actual row container bounds
                 const wrapper = document.getElementById('mapWrapper');
-                const renderWidth = pdfCanvas.offsetWidth || pdfCanvas.clientWidth || (pdfCanvas.width / 2.5);
-                const renderHeight = pdfCanvas.offsetHeight || pdfCanvas.clientHeight || (pdfCanvas.height / 2.5);
-
-                wrapper.style.width = `${renderWidth}px`;
-                wrapper.style.height = `${renderHeight}px`;
+                wrapper.style.width = `${totalWidth}px`;
+                wrapper.style.height = `${maxHeight}px`;
 
                 panzoomInstance = Panzoom(panzoomContainer, { maxScale: 6, minScale: 0.5, canvas: true });
                 
+                // Attach smooth, responsive click listeners to navigation tools
+                document.getElementById('zoomReset').addEventListener('click', () => {
+                    if (panzoomInstance) {
+                        panzoomInstance.reset();
+                        adjustPinScaling();
+                        hideIssuePopover();
+                    }
+                });
+
+                document.getElementById('zoomIn').addEventListener('click', () => {
+                    if (panzoomInstance) {
+                        panzoomInstance.zoomIn();
+                        adjustPinScaling();
+                    }
+                });
+
+                document.getElementById('zoomOut').addEventListener('click', () => {
+                    if (panzoomInstance) {
+                        panzoomInstance.zoomOut();
+                        adjustPinScaling();
+                    }
+                });
+
                 panzoomContainer.parentElement.addEventListener('wheel', (e) => {
                     if (!panzoomInstance) return;
                     e.preventDefault();
@@ -866,8 +832,8 @@
                 return;
             }
 
-            const canvasWidth = pdfCanvas.offsetWidth || pdfCanvas.clientWidth || (pdfCanvas.width / 2.5);
-            const canvasHeight = pdfCanvas.offsetHeight || pdfCanvas.clientHeight || (pdfCanvas.height / 2.5);
+            const canvasWidth = mapWrapper.offsetWidth || mapWrapper.clientWidth;
+            const canvasHeight = mapWrapper.offsetHeight || mapWrapper.clientHeight;
             
             vectorDrawingOverlay.setAttribute('viewBox', `0 0 ${canvasWidth} ${canvasHeight}`);
 
@@ -1007,7 +973,7 @@
                     await supabaseClient.from('map_errors').delete().eq('id', err.id);
                 });
 
-            sidebarList.appendChild(item);
+                sidebarList.appendChild(item);
             });
 
             // Force all textareas to expand to fit their initial text content down the column

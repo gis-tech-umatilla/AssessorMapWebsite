@@ -712,97 +712,107 @@
             });
         }
 
-        async function loadActiveMap(mapObj) {
-            currentMapId = mapObj.id;
-            fetchMapsDirectory(); 
-            placeholderText.innerHTML = "<p class='text-[#1985a1] font-semibold animate-pulse'>Loading Map Sheets...</p>";
-            mapWrapper.classList.add('hidden'); zoomControls.classList.add('hidden'); drawingToolbar.classList.add('hidden');
-            hideIssuePopover();
+async function loadActiveMap(mapObj) {
+    currentMapId = mapObj.id;
+    fetchMapsDirectory(); 
+    placeholderText.innerHTML = "<p class='text-[#1985a1] font-semibold animate-pulse'>Loading Map Sheets...</p>";
+    mapWrapper.classList.add('hidden'); zoomControls.classList.add('hidden'); drawingToolbar.classList.add('hidden');
+    hideIssuePopover();
 
-            if (panzoomInstance) panzoomInstance.destroy();
+    if (panzoomInstance) panzoomInstance.destroy();
 
-            try {
-                const pdf = await pdfjsLib.getDocument(mapObj.file_url).promise;
-                
-                // Render Sheet 1
-                const page1 = await pdf.getPage(1);
-                const viewport1 = page1.getViewport({ scale: 2.5 }); 
-                const context1 = pdfCanvas.getContext('2d');
-                pdfCanvas.height = viewport1.height; 
-                pdfCanvas.width = viewport1.width;
-                await page1.render({ canvasContext: context1, viewport: viewport1 }).promise;
+    try {
+        const pdf = await pdfjsLib.getDocument(mapObj.file_url).promise;
+        const hasSecondPage = pdf.numPages >= 2;
+        
+        // Render Sheet 1
+        const page1 = await pdf.getPage(1);
+        const viewport1 = page1.getViewport({ scale: 2.5 }); 
+        const context1 = pdfCanvas.getContext('2d');
+        pdfCanvas.height = viewport1.height; 
+        pdfCanvas.width = viewport1.width;
+        await page1.render({ canvasContext: context1, viewport: viewport1 }).promise;
 
-                const canvas2El = document.getElementById('pdfCanvas2');
+        const canvas2El = document.getElementById('pdfCanvas2');
 
-                // Render Sheet 2 if it exists
-                if (pdf.numPages >= 2) {
-                    canvas2El.classList.remove('hidden');
-                    const page2 = await pdf.getPage(2);
-                    const viewport2 = page2.getViewport({ scale: 2.5 });
-                    const context2 = canvas2El.getContext('2d');
-                    canvas2El.height = viewport2.height;
-                    canvas2El.width = viewport2.width;
-                    await page2.render({ canvasContext: context2, viewport: viewport2 }).promise;
-                } else {
-                    canvas2El.classList.add('hidden');
-                }
-                
-                placeholderText.classList.add('hidden');
-                mapWrapper.classList.remove('hidden'); 
-                zoomControls.classList.remove('hidden'); 
-                drawingToolbar.classList.remove('hidden'); 
-
-                // Measure layout bounds directly from the row container to respect CSS max-width limits
-                const rowContainer = document.getElementById('canvasRowContainer');
-                const totalWidth = rowContainer.offsetWidth || rowContainer.clientWidth;
-                const maxHeight = rowContainer.offsetHeight || rowContainer.clientHeight;
-
-                // Explicitly sync the drawing wrapper dimensions with the actual row container bounds
-                const wrapper = document.getElementById('mapWrapper');
-                wrapper.style.width = `${totalWidth}px`;
-                wrapper.style.height = `${maxHeight}px`;
-
-                panzoomInstance = Panzoom(panzoomContainer, { maxScale: 6, minScale: 0.5, canvas: true });
-                
-                // Attach smooth, responsive click listeners to navigation tools
-                document.getElementById('zoomReset').addEventListener('click', () => {
-                    if (panzoomInstance) {
-                        panzoomInstance.reset();
-                        adjustPinScaling();
-                        hideIssuePopover();
-                    }
-                });
-
-                document.getElementById('zoomIn').addEventListener('click', () => {
-                    if (panzoomInstance) {
-                        panzoomInstance.zoomIn();
-                        adjustPinScaling();
-                    }
-                });
-
-                document.getElementById('zoomOut').addEventListener('click', () => {
-                    if (panzoomInstance) {
-                        panzoomInstance.zoomOut();
-                        adjustPinScaling();
-                    }
-                });
-
-                panzoomContainer.parentElement.addEventListener('wheel', (e) => {
-                    if (!panzoomInstance) return;
-                    e.preventDefault();
-                    panzoomInstance.zoomWithWheel(e);
-                    adjustPinScaling();
-                    hideIssuePopover();
-                });
-
-                panzoomContainer.addEventListener('panzoomchange', () => { adjustPinScaling(); hideIssuePopover(); });
-                document.getElementById('tool-view').click();
-                fetchPins();
-            } catch (err) {
-                placeholderText.innerHTML = `<p class='text-red-400'>Error loading resource asset frame.</p>`;
-                console.error(err);
-            }
+        // Render Sheet 2 if it exists
+        if (hasSecondPage) {
+            canvas2El.classList.remove('hidden');
+            const page2 = await pdf.getPage(2);
+            const viewport2 = page2.getViewport({ scale: 2.5 });
+            const context2 = canvas2El.getContext('2d');
+            canvas2El.height = viewport2.height;
+            canvas2El.width = viewport2.width;
+            await page2.render({ canvasContext: context2, viewport: viewport2 }).promise;
+        } else {
+            canvas2El.classList.add('hidden');
         }
+        
+        // CRITICAL: Unhide the containers BEFORE measuring dimensions, or offsetWidth/Height will return 0
+        placeholderText.classList.add('hidden');
+        mapWrapper.classList.remove('hidden'); 
+        zoomControls.classList.remove('hidden'); 
+        drawingToolbar.classList.remove('hidden'); 
+
+        // FIX: Isolate width metrics dynamically based on the actual sheet count
+        let totalWidth, maxHeight;
+        if (hasSecondPage) {
+            // Measure the parent flexbox row to grab the side-by-side combined boundaries
+            const rowContainer = document.getElementById('canvasRowContainer');
+            totalWidth = rowContainer.offsetWidth || rowContainer.clientWidth;
+            maxHeight = rowContainer.offsetHeight || rowContainer.clientHeight;
+        } else {
+            // Collapse completely to only fit Sheet 1 bounds if Sheet 2 is missing
+            totalWidth = pdfCanvas.offsetWidth || pdfCanvas.clientWidth || (pdfCanvas.width / 2.5);
+            maxHeight = pdfCanvas.offsetHeight || pdfCanvas.clientHeight || (pdfCanvas.height / 2.5);
+        }
+
+        // Explicitly sync the drawing wrapper dimensions with the accurate bounds calculated above
+        const wrapper = document.getElementById('mapWrapper');
+        wrapper.style.width = `${totalWidth}px`;
+        wrapper.style.height = `${maxHeight}px`;
+
+        panzoomInstance = Panzoom(panzoomContainer, { maxScale: 6, minScale: 0.5, canvas: true });
+        
+        // Attach smooth, responsive click listeners to navigation tools
+        document.getElementById('zoomReset').addEventListener('click', () => {
+            if (panzoomInstance) {
+                panzoomInstance.reset();
+                adjustPinScaling();
+                hideIssuePopover();
+            }
+        });
+
+        document.getElementById('zoomIn').addEventListener('click', () => {
+            if (panzoomInstance) {
+                panzoomInstance.zoomIn();
+                adjustPinScaling();
+            }
+        });
+
+        document.getElementById('zoomOut').addEventListener('click', () => {
+            if (panzoomInstance) {
+                panzoomInstance.zoomOut();
+                adjustPinScaling();
+            }
+        });
+
+        panzoomContainer.parentElement.addEventListener('wheel', (e) => {
+            if (!panzoomInstance) return;
+            e.preventDefault();
+            panzoomInstance.zoomWithWheel(e);
+            adjustPinScaling();
+            hideIssuePopover();
+        });
+
+        panzoomContainer.addEventListener('panzoomchange', () => { adjustPinScaling(); hideIssuePopover(); });
+        document.getElementById('tool-view').click();
+        fetchPins();
+    } catch (err) {
+        placeholderText.innerHTML = `<p class='text-red-400'>Error loading resource asset frame.</p>`;
+        console.error(err);
+    }
+}
 
         async function togglePinStatus(pinId, currentStatus) {
             const nextStatus = currentStatus === 'fixed' ? 'open' : 'fixed';

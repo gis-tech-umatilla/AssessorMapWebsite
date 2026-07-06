@@ -8,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js"></script>
     <style>
         .error-dot { 
             transform: translate(-50%, -50%);
@@ -25,7 +26,11 @@
         .map-text-annotation span {
             font-size: 8px !important;
         }
-
+/* Force butter-smooth panning and zoom adjustments across layout refreshes */
+        #panzoomContainer {
+            transition: transform 0.15s cubic-bezier(0.25, 1, 0.5, 1) !important;
+            will-change: transform;
+        }
         @media print {
             @page {
                 size: letter landscape;
@@ -663,7 +668,7 @@
                 line.setAttribute('stroke-width', (1.3).toString());
             });
         }
-
+// --- FIXED UPLOADER WITH AUTOMATIC 5-CHUNK SPLITS (NO MAX CAP) ---
         pdfUpload.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -671,47 +676,451 @@
             const uniqueStoragePath = `public/${Date.now()}_${cleanName}`;
             placeholderText.innerHTML = `<p class='text-[#b3a98f] font-semibold animate-pulse'>Uploading ${file.name} to cloud servers...</p>`;
 
+            // 1. Upload to storage bucket
             const { data: storageData, error: storageErr } = await supabaseClient.storage.from('assessor-maps').upload(uniqueStoragePath, file);
             if (storageErr) return alert("Upload failed: " + storageErr.message);
 
             const { data: urlData } = supabaseClient.storage.from('assessor-maps').getPublicUrl(storageData.path);
-            const { data: insertedData } = await supabaseClient.from('maps_registry').insert([{ map_name: file.name, file_url: urlData.publicUrl }]).select();
+            
+            // 2. Query groups and maps concurrently
+            const [groupsRes, mapsRes] = await Promise.all([
+                supabaseClient.from('map_groups').select('*').order('id', { ascending: true }),
+                supabaseClient.from('maps_registry').select('*')
+            ]);
+
+            const currentGroups = groupsRes.data || [];
+            const currentMaps = mapsRes.data || [];
+            let targetGroupId = null;
+            let calculatedSortOrder = 0;
+
+            // 3. Get the absolute newest/latest group created
+            const latestGroup = currentGroups[currentGroups.length - 1];
+            
+            // Count how many maps are currently in that specific latest group
+            const latestGroupCount = latestGroup ? currentMaps.filter(m => m.group_id === latestGroup.id).length : 0;
+
+            if (latestGroup && latestGroupCount < 5) {
+                // If the newest group has fewer than 5 maps, use it
+                targetGroupId = latestGroup.id;
+                calculatedSortOrder = latestGroupCount;
+            } else {
+                // If there are no groups, or the latest group is already full (>= 5), make a brand new one
+                const nextGroupNum = currentGroups.length + 1;
+                const { data: newGroup, error: gErr } = await supabaseClient
+                    .from('map_groups')
+                    .insert([{ group_name: `Group ${nextGroupNum}` }])
+                    .select();
+                
+                if (!gErr && newGroup && newGroup.length > 0) {
+                    targetGroupId = newGroup[0].id;
+                    calculatedSortOrder = 0;
+                }
+            }
+
+            // 4. Register map with its correct sort_order sequence pre-assigned
+            const { data: insertedData, error: insertErr } = await supabaseClient.from('maps_registry').insert([{ 
+                map_name: file.name, 
+                file_url: urlData.publicUrl,
+                group_id: targetGroupId,
+                sort_order: calculatedSortOrder
+            }]).select();
+            
             pdfUpload.value = ''; 
-            if (insertedData && insertedData.length > 0) loadActiveMap(insertedData[0]);
+            
+            if (insertErr) return console.error(insertErr.message);
+
+            if (insertedData && insertedData.length > 0) {
+                await fetchMapsDirectory();
+                loadActiveMap(insertedData[0]);
+            }
+        });
+// --- STATE CONTROL GUARD FOR DRAG REORDERS ---
+let isSortingUpdateInProgress = false;
+
+// Global Helper to convert username initials to a stable visual color style
+function getUserColorStyle(prefix) {
+    if (!prefix) return { bg: 'bg-slate-400', border: 'border-slate-500', text: 'text-white' };
+    
+    // Hardcoded color schemes for designated staff members
+    if (prefix === 'mckenzie.bowey') {
+        return { bg: 'bg-red-600', border: 'border-red-700', text: 'text-white' };
+    }
+    if (prefix === 'ian.freel') {
+        return { bg: 'bg-blue-600', border: 'border-blue-700', text: 'text-white' };
+    }
+    
+    // Simple hash rotation fallback for other staff accounts
+    let hash = 0;
+    for (let i = 0; i < prefix.length; i++) {
+        hash = prefix.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    const tailwindPalettes = [
+        { bg: 'bg-indigo-600', border: 'border-indigo-700', text: 'text-white' },
+        { bg: 'bg-emerald-600', border: 'border-emerald-700', text: 'text-white' },
+        { bg: 'bg-amber-600', border: 'border-amber-700', text: 'text-white' },
+        { bg: 'bg-purple-600', border: 'border-purple-700', text: 'text-white' },
+        { bg: 'bg-rose-600', border: 'border-rose-700', text: 'text-white' },
+        { bg: 'bg-cyan-600', border: 'border-cyan-700', text: 'text-white' },
+        { bg: 'bg-fuchsia-600', border: 'border-fuchsia-700', text: 'text-white' }
+    ];
+    
+    return tailwindPalettes[Math.abs(hash) % tailwindPalettes.length];
+}
+
+// --- VISUALLY STATIC PERMANENTLY EXPANDED MAP DIRECTORY ENGINE ---
+async function fetchMapsDirectory() {
+    // If a drag-and-drop loop is processing network requests, block UI redraws
+    if (isSortingUpdateInProgress) return;
+
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    
+    const currentUserEmail = session.user.email.toLowerCase();
+    const currentUserPrefix = getEmailPrefix(currentUserEmail);
+
+    // Fetch groups ordered by their parent sort_order, and maps ordered by their sibling sort_order
+    const [groupsRes, mapsRes] = await Promise.all([
+        supabaseClient.from('map_groups').select('*').order('sort_order', { ascending: true }),
+        supabaseClient.from('maps_registry').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false })
+    ]);
+
+    if (mapsRes.error) return console.error(mapsRes.error);
+    if (groupsRes.error) return console.error(groupsRes.error);
+    
+    const rawGroups = groupsRes.data || [];
+    const rawMaps = mapsRes.data || [];
+
+    mapList.innerHTML = '';
+    if (rawMaps.length === 0) {
+        mapList.innerHTML = '<p class="text-xs text-slate-300/60 italic p-2">No maps uploaded yet.</p>';
+        return;
+    }
+
+    const mapsByGroupMap = {};
+    rawMaps.forEach(map => {
+        const gId = map.group_id || 'unassigned';
+        if (!mapsByGroupMap[gId]) mapsByGroupMap[gId] = [];
+        mapsByGroupMap[gId].push(map);
+    });
+
+    rawGroups.forEach(group => {
+        const groupMaps = mapsByGroupMap[group.id] || [];
+        if (groupMaps.length === 0) return; 
+
+        const groupContainer = document.createElement('div');
+        groupContainer.className = "sortable-folder-item flex flex-col bg-black/10 rounded-lg overflow-hidden border border-black/5 mb-2 text-slate-200";
+        groupContainer.setAttribute('data-group-id', group.id);
+        
+        // Static Wrapper Header Panel
+        const groupHeader = document.createElement('div');
+        groupHeader.className = "w-full flex justify-between items-center bg-black/20 p-2.5 text-xs font-bold text-slate-300 border-b border-b-black/5 select-none";
+        
+        // Folder Drag Handle Container Zone
+        const folderGrip = document.createElement('span');
+        folderGrip.className = "sortable-folder-handle cursor-grab text-slate-400 hover:text-slate-200 text-xs font-bold tracking-tighter select-none shrink-0 pr-2";
+        folderGrip.innerHTML = "☰";
+        groupHeader.appendChild(folderGrip);
+
+        const titleTextSpan = document.createElement('span');
+        titleTextSpan.className = "flex-1 tracking-wide py-0.5 truncate mr-2 cursor-pointer";
+        titleTextSpan.innerText = `📂 ${group.group_name}`;
+        groupHeader.appendChild(titleTextSpan);
+
+        // CASCADE DELETE FOLDER BUTTON WITH TWO-STAGE POPUP
+        const delGroupBtn = document.createElement('button');
+        delGroupBtn.className = "text-[10px] bg-red-950/40 hover:bg-red-700/80 text-red-400 hover:text-white px-1.5 py-0.5 rounded font-bold transition shrink-0 cursor-pointer select-none";
+        delGroupBtn.innerText = "Delete";
+        delGroupBtn.onclick = async (e) => {
+            e.stopPropagation();
+            
+            const confirmFirst = confirm(`Are you sure you want to delete the folder "${group.group_name}"?`);
+            if (!confirmFirst) return;
+
+            const mapCountText = groupMaps.length > 0 ? ` and ALL ${groupMaps.length} map sheet(s) inside it` : '';
+            const confirmSecond = confirm(`CRITICAL WARNING: This will permanently delete "${group.group_name}"${mapCountText}, along with any associated logged issues. This action CANNOT be undone. Proceed?`);
+            
+            if (confirmSecond) {
+                const storagePaths = groupMaps
+                    .map(m => m.file_url.split('/assessor-maps/'))
+                    .filter(parts => parts.length > 1)
+                    .map(parts => parts[1]);
+
+                if (storagePaths.length > 0) {
+                    await supabaseClient.storage.from('assessor-maps').remove(storagePaths);
+                }
+
+                if (groupMaps.length > 0) {
+                    await supabaseClient.from('maps_registry').delete().eq('group_id', group.id);
+                }
+                
+                await supabaseClient.from('map_groups').delete().eq('id', group.id);
+
+                const wasActiveMapDeleted = groupMaps.some(m => m.id === currentMapId);
+                if (wasActiveMapDeleted) {
+                    location.reload();
+                } else {
+                    await fetchMapsDirectory();
+                }
+            }
+        };
+        groupHeader.appendChild(delGroupBtn);
+        
+        groupContainer.appendChild(groupHeader);
+
+        // DRAGGABLE MAP CONTAINER ELEMENT
+        const childrenContentWrapper = document.createElement('div');
+        childrenContentWrapper.className = "p-1 space-y-1 block min-h-[40px] sortable-map-list";
+        childrenContentWrapper.setAttribute('data-group-id', group.id);
+
+        // --- DOUBLE CLICK INLINE RENAME FLOW ---
+        titleTextSpan.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
+            
+            const renameInput = document.createElement('input');
+            renameInput.type = 'text';
+            renameInput.value = group.group_name;
+            renameInput.className = "flex-1 bg-slate-800 border border-blue-500 rounded px-1.5 py-0.5 text-xs text-white font-bold tracking-wide outline-none focus:ring-1 focus:ring-blue-400 select-text";
+            
+            groupHeader.replaceChild(renameInput, titleTextSpan);
+            renameInput.focus();
+            renameInput.select();
+
+            let isSaved = false;
+            async function commitGroupNameChange() {
+                if (isSaved) return;
+                isSaved = true;
+                
+                const updatedValue = renameInput.value.trim();
+                if (updatedValue && updatedValue !== group.group_name) {
+                    titleTextSpan.innerText = `📂 ${updatedValue}`;
+                    group.group_name = updatedValue;
+                    await supabaseClient
+                        .from('map_groups')
+                        .update({ group_name: updatedValue })
+                        .eq('id', group.id);
+                } else {
+                    titleTextSpan.innerText = `📂 ${group.group_name}`;
+                }
+                
+                if (groupHeader.contains(renameInput)) {
+                    groupHeader.replaceChild(titleTextSpan, renameInput);
+                }
+            }
+
+            renameInput.addEventListener('keydown', (inputEvt) => {
+                if (inputEvt.key === 'Enter') commitGroupNameChange();
+                if (inputEvt.key === 'Escape') {
+                    renameInput.value = group.group_name;
+                    commitGroupNameChange();
+                }
+            });
+            renameInput.addEventListener('blur', commitGroupNameChange);
         });
 
-        async function fetchMapsDirectory() {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) return;
+groupMaps.forEach((map) => {
+            const mapRow = document.createElement('div');
+            mapRow.className = `group flex items-center p-2 rounded-md transition space-x-2 ${currentMapId === map.id ? 'bg-[#1985a1] text-white shadow-md' : 'text-slate-200 hover:bg-black/10'}`;
+            mapRow.setAttribute('data-map-id', map.id);
 
-            const { data, error } = await supabaseClient.from('maps_registry').select('*').order('created_at', { ascending: false });
-            if (error) return console.error(error);
-            mapList.innerHTML = '';
-            if (data.length === 0) { mapList.innerHTML = '<p class="text-xs text-slate-300/60 italic p-2">No maps uploaded yet.</p>'; return; }
+            // 1. Map List Row Sort Grip Handle
+            const gripHandle = document.createElement('span');
+            gripHandle.className = "sortable-handle cursor-grab text-slate-500 hover:text-slate-300 text-xs font-bold tracking-tighter select-none shrink-0 pr-1";
+            gripHandle.innerHTML = "⋮⋮";
+            mapRow.appendChild(gripHandle);
 
-            data.forEach(map => {
-                const mapRow = document.createElement('div');
-                mapRow.className = `group flex justify-between items-center px-2 py-1.5 rounded-md transition ${currentMapId === map.id ? 'bg-[#1985a1] text-white' : 'text-slate-200 hover:bg-black/10'}`;
-                const btn = document.createElement('button');
-                btn.className = 'flex-1 text-left text-xs font-medium truncate block cursor-pointer pr-2';
-                btn.innerText = `📄 ${map.map_name}`;
-                btn.onclick = () => loadActiveMap(map);
-                mapRow.appendChild(btn);
+            // This entire internal row layout acts as the map selector frame click area
+            const rowContentLayout = document.createElement('div');
+            rowContentLayout.className = "flex-1 flex justify-between items-center min-w-0 cursor-pointer select-none";
+            rowContentLayout.onclick = () => loadActiveMap(map);
 
-                const delBtn = document.createElement('button');
-                delBtn.className = `opacity-0 group-hover:opacity-100 p-1 hover:bg-red-700/50 rounded text-red-300 hover:text-red-100 transition text-xs cursor-pointer font-bold`;
-                delBtn.innerHTML = 'Delete';
-                delBtn.onclick = async (e) => {
-                    e.stopPropagation();
+            // 2. Document Name Label
+            const cleanMapName = map.map_name.replace(/\.pdf$/i, '');
+            const nameLabelSpan = document.createElement('span');
+            nameLabelSpan.className = 'text-left text-xs font-medium truncate block min-w-0 pl-1 pr-2 pointer-events-none';
+            nameLabelSpan.innerText = `📄 ${cleanMapName}`;
+            rowContentLayout.appendChild(nameLabelSpan);
+
+            // Container for right-aligned control utilities
+            const controlGroupContainer = document.createElement('div');
+            controlGroupContainer.className = "flex items-center space-x-2 shrink-0";
+
+            // 3. STICKY REVIEW CHECKBOX INDICATOR BINDINGS
+            const reviewersArr = map.reviewed_by || [];
+            const hasReviewed = reviewersArr.includes(currentUserPrefix);
+            
+            const progressIndicatorBtn = document.createElement('button');
+            progressIndicatorBtn.className = "w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-bold tracking-widest pl-[1px] shrink-0 cursor-pointer transition-all duration-150 relative mr-1";
+            
+            if (reviewersArr.length > 0) {
+                let primaryPrefix = reviewersArr[0];
+                if (reviewersArr.includes('mckenzie.bowey')) {
+                    primaryPrefix = 'mckenzie.bowey';
+                } else if (reviewersArr.includes('ian.freel')) {
+                    primaryPrefix = 'ian.freel';
+                }
+                
+                const nameParts = primaryPrefix.split('.');
+                let initials = "";
+                if (nameParts.length >= 2) {
+                    initials = (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase();
+                } else {
+                    initials = primaryPrefix.substring(0, 2).toUpperCase();
+                }
+                
+                const colors = getUserColorStyle(primaryPrefix);
+                
+                progressIndicatorBtn.className += ` ${colors.bg} ${colors.border} ${colors.text}`;
+                progressIndicatorBtn.innerText = initials;
+                progressIndicatorBtn.title = `Reviewed by: ${reviewersArr.join(', ')}`;
+            } else {
+                progressIndicatorBtn.className += " border-dashed border-slate-400 bg-transparent text-transparent hover:border-slate-200 hover:bg-white/10";
+                progressIndicatorBtn.innerHTML = "&nbsp;";
+                progressIndicatorBtn.title = "Mark as Reviewed";
+            }
+
+            progressIndicatorBtn.onclick = async (e) => {
+                // Prevent map navigation from firing
+                e.stopPropagation();
+                let updatedReviewers;
+                if (hasReviewed) {
+                    updatedReviewers = reviewersArr.filter(p => p !== currentUserPrefix);
+                } else {
+                    updatedReviewers = [...reviewersArr, currentUserPrefix];
+                }
+
+                const { error } = await supabaseClient
+                    .from('maps_registry')
+                    .update({ reviewed_by: updatedReviewers })
+                    .eq('id', map.id);
+                
+                if (error) {
+                    console.error("Error updating review progress tracking state:", error.message);
+                } else {
+                    await fetchMapsDirectory();
+                }
+            };
+            controlGroupContainer.appendChild(progressIndicatorBtn);
+
+            // 4. Standalone Leaf Record Removal Processing Area
+            const delBtn = document.createElement('button');
+            delBtn.className = `opacity-0 group-hover:opacity-100 px-1.5 py-0.5 bg-red-900/30 hover:bg-red-700/80 rounded text-red-400 hover:text-white transition text-[10px] cursor-pointer font-bold shrink-0`;
+            delBtn.innerHTML = 'Delete';
+            delBtn.onclick = async (e) => {
+                // Prevent map navigation from firing
+                e.stopPropagation();
+                const confirmDeletion = confirm(`Are you sure you want to delete "${cleanMapName}"? This will permanently remove the map and all associated logged issues.`);
+                if (confirmDeletion) {
                     const urlParts = map.file_url.split('/assessor-maps/');
                     if (urlParts.length > 1) await supabaseClient.storage.from('assessor-maps').remove([urlParts[1]]);
                     await supabaseClient.from('maps_registry').delete().eq('id', map.id);
                     if (currentMapId === map.id) location.reload();
-                };
-                mapRow.appendChild(delBtn); mapList.appendChild(mapRow);
-            });
-        }
+                }
+            };
+            controlGroupContainer.appendChild(delBtn);
+            
+            rowContentLayout.appendChild(controlGroupContainer);
+            mapRow.appendChild(rowContentLayout);
 
+            childrenContentWrapper.appendChild(mapRow);
+        });
+
+        groupContainer.appendChild(childrenContentWrapper);
+        mapList.appendChild(groupContainer);
+    });
+    
+    // Bind both layouts components with the SortableJS engine
+    initSortableDragAndDrop();
+}
+
+// --- DRAG-DROP COMPONENT REINDEX HANDLER ---
+function initSortableDragAndDrop() {
+    // 1. Initialize Parent Folder Sorting Control
+    Sortable.create(mapList, {
+        animation: 180,
+        handle: '.sortable-folder-handle',
+        ghostClass: 'bg-[#b3a98f]/20',
+        onEnd: async function () {
+            try {
+                isSortingUpdateInProgress = true;
+                const folderRows = mapList.querySelectorAll('.sortable-folder-item');
+                const folderUpdates = [];
+
+                folderRows.forEach((folder, newIdx) => {
+                    const groupId = Number(folder.getAttribute('data-group-id'));
+                    folderUpdates.push(
+                        supabaseClient
+                            .from('map_groups')
+                            .update({ sort_order: newIdx })
+                            .eq('id', groupId)
+                    );
+                });
+
+                console.log(`[Batch Update] Reindexing ${folderUpdates.length} folders...`);
+                await Promise.all(folderUpdates);
+            } catch (err) {
+                console.error("Folder sorting synchronization dropped:", err);
+            } finally {
+                isSortingUpdateInProgress = false;
+                await fetchMapsDirectory();
+            }
+        }
+    });
+
+    // 2. Initialize Nested Child Maps Sorting Control
+    const lists = document.querySelectorAll('.sortable-map-list');
+    lists.forEach(listEl => {
+        Sortable.create(listEl, {
+            group: 'shared-maps-directory', 
+            animation: 180,
+            handle: '.sortable-handle',    
+            ghostClass: 'bg-[#1985a1]/20',
+            
+            onEnd: async function (evt) {
+                const toListEl = evt.to;
+                const fromListEl = evt.from;
+                
+                try {
+                    isSortingUpdateInProgress = true;
+
+                    const affectedLists = [toListEl];
+                    if (fromListEl !== toListEl) {
+                        affectedLists.push(fromListEl);
+                    }
+
+                    const updates = [];
+
+                    for (const currentList of affectedLists) {
+                        const listGroupIdRaw = currentList.getAttribute('data-group-id');
+                        let listGroupId = (listGroupIdRaw !== 'unassigned' && listGroupIdRaw !== null) ? Number(listGroupIdRaw) : null;
+                        
+                        const childRows = currentList.querySelectorAll('[data-map-id]');
+                        childRows.forEach((row, newIdx) => {
+                            const mapId = Number(row.getAttribute('data-map-id'));
+                            updates.push(
+                                supabaseClient
+                                    .from('maps_registry')
+                                    .update({ 
+                                        group_id: listGroupId, 
+                                        sort_order: newIdx 
+                                    })
+                                    .eq('id', mapId)
+                            );
+                        });
+                    }
+
+                    console.log(`[Batch Update] Processing ${updates.length} map file position updates...`);
+                    await Promise.all(updates);
+                } catch (err) {
+                    console.error("Sortable map processing error:", err);
+                } finally {
+                    isSortingUpdateInProgress = false;
+                    await fetchMapsDirectory();
+                }
+            }
+        });
+    });
+}
 async function loadActiveMap(mapObj) {
     currentMapId = mapObj.id;
     fetchMapsDirectory(); 
@@ -772,7 +1181,7 @@ async function loadActiveMap(mapObj) {
         wrapper.style.width = `${totalWidth}px`;
         wrapper.style.height = `${maxHeight}px`;
 
-        panzoomInstance = Panzoom(panzoomContainer, { maxScale: 6, minScale: 0.5, canvas: true });
+        panzoomInstance = Panzoom(panzoomContainer, { maxScale: 6, minScale: 0.5, canvas: true, animate: true });
         
         // Attach smooth, responsive click listeners to navigation tools
         document.getElementById('zoomReset').addEventListener('click', () => {

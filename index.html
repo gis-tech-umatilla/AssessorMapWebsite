@@ -741,12 +741,12 @@ let isSortingUpdateInProgress = false;
 function getUserColorStyle(prefix) {
     if (!prefix) return { bg: 'bg-slate-400', border: 'border-slate-500', text: 'text-white' };
     
-    // Hardcoded color schemes for designated staff members
+    // Hardcoded custom hex color schemes using Tailwind arbitrary values
     if (prefix === 'mckenzie.bowey') {
-        return { bg: 'bg-red-600', border: 'border-red-700', text: 'text-white' };
+        return { bg: 'bg-[#e83a3a]', border: 'border-[#d12e2e]', text: 'text-white' };
     }
     if (prefix === 'ian.freel') {
-        return { bg: 'bg-blue-600', border: 'border-blue-700', text: 'text-white' };
+        return { bg: 'bg-[#249fb3]', border: 'border-[#1b8294]', text: 'text-white' };
     }
     
     // Simple hash rotation fallback for other staff accounts

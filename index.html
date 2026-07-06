@@ -943,71 +943,86 @@ groupMaps.forEach((map) => {
 
             // Container for right-aligned control utilities
             const controlGroupContainer = document.createElement('div');
-            controlGroupContainer.className = "flex items-center space-x-2 shrink-0";
+            controlGroupContainer.className = "flex items-center space-x-1.5 shrink-0";
 
-            // 3. STICKY REVIEW CHECKBOX INDICATOR BINDINGS
+            // 3. MULTI-REVIEWER COMPONENT RENDERING ENGINE
             const reviewersArr = map.reviewed_by || [];
             const hasReviewed = reviewersArr.includes(currentUserPrefix);
-            
-            const progressIndicatorBtn = document.createElement('button');
-            progressIndicatorBtn.className = "w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-bold tracking-widest pl-[1px] shrink-0 cursor-pointer transition-all duration-150 relative mr-1";
-            
-            if (reviewersArr.length > 0) {
-                let primaryPrefix = reviewersArr[0];
-                if (reviewersArr.includes('mckenzie.bowey')) {
-                    primaryPrefix = 'mckenzie.bowey';
-                } else if (reviewersArr.includes('ian.freel')) {
-                    primaryPrefix = 'ian.freel';
-                }
+
+            // Sort existing reviewers arrays by hardcoded rule: mckenzie first, ian second, others last
+            const sortedReviewers = [...reviewersArr].sort((a, b) => {
+                if (a === 'mckenzie.bowey') return -1;
+                if (b === 'mckenzie.bowey') return 1;
+                if (a === 'ian.freel') return -1;
+                if (b === 'ian.freel') return 1;
+                return a.localeCompare(b);
+            });
+
+            // A: Render active circles for everyone who already reviewed it
+            sortedReviewers.forEach((prefix) => {
+                const badge = document.createElement('button');
+                badge.className = "w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-bold tracking-widest pl-[1px] shrink-0 cursor-pointer transition-all duration-150 relative";
                 
-                const nameParts = primaryPrefix.split('.');
-                let initials = "";
-                if (nameParts.length >= 2) {
-                    initials = (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase();
-                } else {
-                    initials = primaryPrefix.substring(0, 2).toUpperCase();
-                }
-                
-                const colors = getUserColorStyle(primaryPrefix);
-                
-                progressIndicatorBtn.className += ` ${colors.bg} ${colors.border} ${colors.text}`;
-                progressIndicatorBtn.innerText = initials;
-                progressIndicatorBtn.title = `Reviewed by: ${reviewersArr.join(', ')}`;
-            } else {
-                progressIndicatorBtn.className += " border-dashed border-slate-400 bg-transparent text-transparent hover:border-slate-200 hover:bg-white/10";
-                progressIndicatorBtn.innerHTML = "&nbsp;";
-                progressIndicatorBtn.title = "Mark as Reviewed";
+                const nameParts = prefix.split('.');
+                const initials = nameParts.length >= 2 
+                    ? (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase()
+                    : prefix.substring(0, 2).toUpperCase();
+
+                const colors = getUserColorStyle(prefix);
+                badge.className += ` ${colors.bg} ${colors.border} ${colors.text}`;
+                badge.innerText = initials;
+                badge.title = `Reviewed by ${prefix}. Click to remove your review option.`;
+
+                badge.onclick = async (e) => {
+                    e.stopPropagation();
+                    // Only allow the user clicking to remove THEIR OWN review mark safely
+                    let updatedReviewers = reviewersArr.filter(p => p !== prefix);
+                    
+                    // If clicking someone else's badge, act as a toggle for the current user instead
+                    if (prefix !== currentUserPrefix) {
+                        if (hasReviewed) {
+                            updatedReviewers = reviewersArr.filter(p => p !== currentUserPrefix);
+                        } else {
+                            updatedReviewers = [...reviewersArr, currentUserPrefix];
+                        }
+                    }
+
+                    const { error } = await supabaseClient
+                        .from('maps_registry')
+                        .update({ reviewed_by: updatedReviewers })
+                        .eq('id', map.id);
+                    
+                    if (!error) await fetchMapsDirectory();
+                };
+                controlGroupContainer.appendChild(badge);
+            });
+
+            // B: If the current user has NOT marked it yet, show a dashed option button for them
+            if (!hasReviewed) {
+                const actionBtn = document.createElement('button');
+                actionBtn.className = "w-6 h-6 rounded-full border border-dashed border-slate-400 bg-transparent text-transparent hover:border-slate-200 hover:bg-white/10 flex items-center justify-center shrink-0 cursor-pointer transition-all duration-150";
+                actionBtn.innerHTML = "&nbsp;";
+                actionBtn.title = "Mark as Reviewed";
+
+                actionBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    const updatedReviewers = [...reviewersArr, currentUserPrefix];
+
+                    const { error } = await supabaseClient
+                        .from('maps_registry')
+                        .update({ reviewed_by: updatedReviewers })
+                        .eq('id', map.id);
+                    
+                    if (!error) await fetchMapsDirectory();
+                };
+                controlGroupContainer.appendChild(actionBtn);
             }
-
-            progressIndicatorBtn.onclick = async (e) => {
-                // Prevent map navigation from firing
-                e.stopPropagation();
-                let updatedReviewers;
-                if (hasReviewed) {
-                    updatedReviewers = reviewersArr.filter(p => p !== currentUserPrefix);
-                } else {
-                    updatedReviewers = [...reviewersArr, currentUserPrefix];
-                }
-
-                const { error } = await supabaseClient
-                    .from('maps_registry')
-                    .update({ reviewed_by: updatedReviewers })
-                    .eq('id', map.id);
-                
-                if (error) {
-                    console.error("Error updating review progress tracking state:", error.message);
-                } else {
-                    await fetchMapsDirectory();
-                }
-            };
-            controlGroupContainer.appendChild(progressIndicatorBtn);
 
             // 4. Standalone Leaf Record Removal Processing Area
             const delBtn = document.createElement('button');
-            delBtn.className = `opacity-0 group-hover:opacity-100 px-1.5 py-0.5 bg-red-900/30 hover:bg-red-700/80 rounded text-red-400 hover:text-white transition text-[10px] cursor-pointer font-bold shrink-0`;
+            delBtn.className = `opacity-0 group-hover:opacity-100 px-1.5 py-0.5 bg-red-900/30 hover:bg-red-700/80 rounded text-red-400 hover:text-white transition text-[10px] cursor-pointer font-bold shrink-0 ml-1`;
             delBtn.innerHTML = 'Delete';
             delBtn.onclick = async (e) => {
-                // Prevent map navigation from firing
                 e.stopPropagation();
                 const confirmDeletion = confirm(`Are you sure you want to delete "${cleanMapName}"? This will permanently remove the map and all associated logged issues.`);
                 if (confirmDeletion) {

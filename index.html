@@ -1255,32 +1255,23 @@ async function loadActiveMap(mapObj) {
             if (!error) { activeErrors = data; renderUI(); }
         }
 
-        function renderUI() {
+function renderUI() {
+            // Render map elements (safe to redraw because they are on the canvas wrapper)
             dotsContainer.innerHTML = '';
-            sidebarList.innerHTML = '';
-            
             const linesToRemove = vectorDrawingOverlay.querySelectorAll('line');
             linesToRemove.forEach(el => el.remove());
-
-            if (activeErrors.length === 0) {
-                sidebarList.innerHTML = '<p class="text-sm text-gray-400 italic">No Issues Logged Yet</p>';
-                return;
-            }
 
             const canvasWidth = mapWrapper.offsetWidth || mapWrapper.clientWidth;
             const canvasHeight = mapWrapper.offsetHeight || mapWrapper.clientHeight;
             
             vectorDrawingOverlay.setAttribute('viewBox', `0 0 ${canvasWidth} ${canvasHeight}`);
 
-            let inputToFocus = null; 
-
+            // Draw vector geometries on the map
             activeErrors.forEach((err) => {
                 const pinNumber = err.error_number || '?';
                 const isFixed = err.status === 'fixed';
-                
                 const colorHex = isFixed ? '#059669' : '#dc2626';
                 const dotColorClass = isFixed ? 'bg-emerald-600' : 'bg-red-600';
-                const cardColorClass = isFixed ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200';
                 const badgeColorClass = isFixed ? 'bg-emerald-600' : 'bg-red-600';
 
                 let showOnMap = true;
@@ -1342,76 +1333,178 @@ async function loadActiveMap(mapObj) {
                         dotsContainer.appendChild(dot);
                     }
                 }
+            });
 
-                const item = document.createElement('div');
-                item.className = `p-3 ${cardColorClass} border rounded-lg shadow-sm text-sm flex flex-col relative group transition duration-150`;
+            // --- SMART SIDEBAR DOM RECONCILIATION ---
+            if (activeErrors.length === 0) {
+                sidebarList.innerHTML = '<p class="text-sm text-gray-400 italic">No Issues Logged Yet</p>';
+                return;
+            }
+
+            // Remove static text placeholders if they exist
+            const emptyPlaceholder = sidebarList.querySelector('p');
+            if (emptyPlaceholder) emptyPlaceholder.remove();
+
+            // Track active elements to remove stale cards
+            const currentDatabaseIds = new Set(activeErrors.map(err => err.id));
+            const existingDOMCards = sidebarList.querySelectorAll('[data-card-issue-id]');
+            existingDOMCards.forEach(card => {
+                const issueId = card.getAttribute('data-card-issue-id');
+                if (!currentDatabaseIds.has(issueId)) {
+                    card.remove();
+                }
+            });
+
+            let inputToFocus = null;
+
+            activeErrors.forEach((err, index) => {
+                const pinNumber = err.error_number || '?';
+                const isFixed = err.status === 'fixed';
                 
+                const cardColorClass = isFixed ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800';
+                const badgeColorClass = isFixed ? 'bg-emerald-600' : 'bg-red-600';
+
                 let typePrefix = 'Point';
                 if (err.tool_type === 'line') typePrefix = 'Line';
                 if (err.tool_type === 'dash') typePrefix = 'Dash';
                 if (err.tool_type === 'arrow') typePrefix = 'Arrow';
                 if (err.tool_type === 'text') typePrefix = 'Map Text';
 
-                const defaultOptionSelected = (!err.gis_layer) ? 'selected' : '';
-                let layerOptionsHTML = `<option value="" ${defaultOptionSelected}>--- Select Layer (Unassigned) ---</option>`;
-                
-                GIS_LAYERS_REGISTRY.forEach(layerName => {
-                    const isSelected = err.gis_layer === layerName ? 'selected' : '';
-                    layerOptionsHTML += `<option value="${layerName}" ${isSelected}>${layerName}</option>`;
-                });
-
                 const displayCreator = err.created_by ? `<span class="text-[10px] font-medium text-slate-500 italic">by ${err.created_by}</span>` : '';
+                
+                // Find or create card element
+                let item = sidebarList.querySelector(`[data-card-issue-id="${err.id}"]`);
+                const isNewCard = !item;
 
-                item.innerHTML = `
-                    <div class="flex justify-between items-start mb-1.5">
-                        <div class="flex items-center space-x-1.5 flex-1 cursor-pointer" id="status-badge-zone-${err.id}">
-                            <span class="${badgeColorClass} text-white rounded-full w-5 h-5 text-xs flex items-center justify-center font-bold">${pinNumber}</span>
-                            <span class="text-[9px] font-bold text-slate-500 bg-slate-200/80 px-1 rounded">${typePrefix}</span>
-                            <span class="text-[10px] font-bold tracking-wide uppercase px-1 py-0.5 rounded ${isFixed ? 'bg-emerald-200 text-emerald-800' : 'bg-red-200 text-red-800'}">${err.status}</span>
-                            ${displayCreator}
+                if (isNewCard) {
+                    item = document.createElement('div');
+                    item.setAttribute('data-card-issue-id', err.id);
+                    item.className = `p-3 border rounded-lg shadow-sm text-sm flex flex-col relative group transition duration-150 ${cardColorClass}`;
+                    
+                    // Create base internal structure on absolute initial render only
+                    item.innerHTML = `
+                        <div class="flex justify-between items-start mb-1.5">
+                            <div class="flex items-center space-x-1.5 flex-1 cursor-pointer status-badge-zone">
+                                <span class="badge-number text-white rounded-full w-5 h-5 text-xs flex items-center justify-center font-bold"></span>
+                                <span class="type-badge text-[9px] font-bold text-slate-500 bg-slate-200/80 px-1 rounded"></span>
+                                <span class="status-badge text-[10px] font-bold tracking-wide uppercase px-1 py-0.5 rounded"></span>
+                                <span class="creator-badge"></span>
+                            </div>
+                            <button class="delete-pin-btn text-xs text-gray-400 hover:text-red-600 font-bold transition opacity-0 group-hover:opacity-100 cursor-pointer p-0.5 rounded hover:bg-gray-200/50">Delete</button>
                         </div>
-                        <button class="delete-pin-btn text-xs text-gray-400 hover:text-red-600 font-bold transition opacity-0 group-hover:opacity-100 cursor-pointer p-0.5 rounded hover:bg-gray-200/50 ${activeTool === 'view' ? 'hidden' : ''}">Delete</button>
-                    </div>
-                    <div class="w-full mt-1 space-y-2">
-                    <textarea id="input-${err.id}" rows="1" oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px';" class="w-full border border-slate-300 rounded px-2 py-1 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 select-text resize-none overflow-hidden block" placeholder="${err.tool_type === 'text' ? 'Type text to overlay on map...' : 'Type error description...'}" style="height: auto; min-height: 28px;">${err.description || ''}</textarea>
-                        ${err.tool_type === 'text' ? `
-                            <div class="flex flex-col space-y-0.5">
+                        <div class="w-full mt-1 space-y-2">
+                            <textarea id="input-${err.id}" rows="1" oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px';" class="w-full border border-slate-300 rounded px-2 py-1 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 select-text resize-none overflow-hidden block" style="height: auto; min-height: 28px;"></textarea>
+                            <div class="annotation-layer-container flex flex-col space-y-0.5 hidden">
                                 <label class="text-[10px] font-bold text-slate-400 tracking-tight uppercase">Annotation Layer</label>
                                 <select id="layer-select-${err.id}" class="w-full bg-slate-100 border border-slate-300 rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 focus:outline-none cursor-pointer">
-                                    ${layerOptionsHTML}
                                 </select>
                             </div>
-                        ` : ''}
-                    </div>
-                `;
+                        </div>
+                    `;
+                } else {
+                    item.className = `p-3 border rounded-lg shadow-sm text-sm flex flex-col relative group transition duration-150 ${cardColorClass}`;
+                }
 
-                item.querySelector(`#status-badge-zone-${err.id}`).addEventListener('click', () => togglePinStatus(err.id, err.status));
-                const inlineInput = item.querySelector(`#input-${err.id}`);
+                // Update static metadata without redrawing entire sections
+                const badgeNum = item.querySelector('.badge-number');
+                badgeNum.className = `badge-number ${badgeColorClass} text-white rounded-full w-5 h-5 text-xs flex items-center justify-center font-bold`;
+                badgeNum.innerText = pinNumber;
+
+                item.querySelector('.type-badge').innerText = typePrefix;
+
+                const statusB = item.querySelector('.status-badge');
+                statusB.className = `status-badge text-[10px] font-bold tracking-wide uppercase px-1 py-0.5 rounded ${isFixed ? 'bg-emerald-200 text-emerald-800' : 'bg-red-200 text-red-800'}`;
+                statusB.innerText = err.status;
+
+                item.querySelector('.creator-badge').innerHTML = displayCreator;
+
+                const deleteBtn = item.querySelector('.delete-pin-btn');
+                if (activeTool === 'view') {
+                    deleteBtn.classList.add('hidden');
+                } else {
+                    deleteBtn.classList.remove('hidden');
+                }
+
+                // Setup or update dropdown list options dynamically
+                const selectDropdown = item.querySelector(`#layer-select-${err.id}`);
+                const layerContainer = item.querySelector('.annotation-layer-container');
                 
                 if (err.tool_type === 'text') {
-                    inlineInput.addEventListener('input', (e) => {
+                    layerContainer.classList.remove('hidden');
+                    
+                    // Only modify select list items if the user is NOT actively using the dropdown menu
+                    if (document.activeElement !== selectDropdown) {
+                        const defaultOptionSelected = (!err.gis_layer) ? 'selected' : '';
+                        let layerOptionsHTML = `<option value="" ${defaultOptionSelected}>--- Select Layer (Unassigned) ---</option>`;
+                        GIS_LAYERS_REGISTRY.forEach(layerName => {
+                            const isSelected = err.gis_layer === layerName ? 'selected' : '';
+                            layerOptionsHTML += `<option value="${layerName}" ${isSelected}>${layerName}</option>`;
+                        });
+                        selectDropdown.innerHTML = layerOptionsHTML;
+                    }
+                } else {
+                    layerContainer.classList.add('hidden');
+                }
+
+                // Update input values delicately to preserve typing state on the active input
+                const inlineInput = item.querySelector(`#input-${err.id}`);
+                inlineInput.placeholder = err.tool_type === 'text' ? 'Type text to overlay on map...' : 'Type error description...';
+                
+                if (document.activeElement !== inlineInput) {
+                    inlineInput.value = err.description || '';
+                }
+
+                // Attach event logic safely (clean existing listeners first)
+                const badgeZone = item.querySelector(`.status-badge-zone`);
+                badgeZone.replaceWith(badgeZone.cloneNode(true));
+                item.querySelector(`.status-badge-zone`).addEventListener('click', () => togglePinStatus(err.id, err.status));
+                
+                if (err.tool_type === 'text') {
+                    // Update input event
+                    inlineInput.replaceWith(inlineInput.cloneNode(true));
+                    const freshInput = item.querySelector(`#input-${err.id}`);
+                    
+                    freshInput.addEventListener('input', (e) => {
                         const textAnnotationElement = dotsContainer.querySelector(`div[style*="left: ${err.x_percent}%"] span.font-bold:not([class*="badge"])`);
                         if (textAnnotationElement) { textAnnotationElement.innerText = e.target.value || 'Type text...'; }
                     });
+                    freshInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') freshInput.blur(); });
+                    freshInput.addEventListener('blur', () => saveInlineDescription(err.id, freshInput.value));
 
-                    const layerDropdown = item.querySelector(`#layer-select-${err.id}`);
-                    layerDropdown.addEventListener('change', (e) => { saveInlineLayer(err.id, e.target.value); });
+                    // Update drop-down event
+                    selectDropdown.replaceWith(selectDropdown.cloneNode(true));
+                    const freshDropdown = item.querySelector(`#layer-select-${err.id}`);
+                    freshDropdown.addEventListener('change', (e) => { saveInlineLayer(err.id, e.target.value); });
+                    
+                    if (err.id === newlyCreatedPinId) inputToFocus = freshInput;
+                } else {
+                    inlineInput.replaceWith(inlineInput.cloneNode(true));
+                    const freshInput = item.querySelector(`#input-${err.id}`);
+                    freshInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') freshInput.blur(); });
+                    freshInput.addEventListener('blur', () => saveInlineDescription(err.id, freshInput.value));
+                    
+                    if (err.id === newlyCreatedPinId) inputToFocus = freshInput;
                 }
 
-                inlineInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') inlineInput.blur(); });
-                inlineInput.addEventListener('blur', () => saveInlineDescription(err.id, inlineInput.value));
-
-                if (err.id === newlyCreatedPinId) inputToFocus = inlineInput;
-
+                const finalDelBtn = item.querySelector('.delete-pin-btn');
+                finalDelBtn.replaceWith(finalDelBtn.cloneNode(true));
                 item.querySelector('.delete-pin-btn').addEventListener('click', async (e) => {
                     e.stopPropagation();
                     await supabaseClient.from('map_errors').delete().eq('id', err.id);
                 });
 
-                sidebarList.appendChild(item);
+                // Append or re-order DOM nodes dynamically
+                if (isNewCard) {
+                    sidebarList.appendChild(item);
+                } else {
+                    // Make sure DOM position matches sorted index order perfectly
+                    if (sidebarList.children[index] !== item) {
+                        sidebarList.insertBefore(item, sidebarList.children[index]);
+                    }
+                }
             });
 
-            // Force all textareas to expand to fit their initial text content down the column
+            // Auto-expand dynamic height on all side panel input fields
             document.querySelectorAll('#sidebarList textarea').forEach(textarea => {
                 textarea.style.height = 'auto';
                 textarea.style.height = textarea.scrollHeight + 'px';

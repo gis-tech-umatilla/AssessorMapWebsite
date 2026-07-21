@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Umatilla County Assessor Map QA Tool</title>
+    <title>Assessor Map Issue Marking</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
@@ -167,7 +167,10 @@
     </div>
 
     <header class="bg-[#4c5c68] text-white p-4 shadow-md flex justify-between items-center z-50 border-b border-white/10">
-        <h1 class="text-xl font-bold tracking-tight">Umatilla County Assessor Map QA</h1>
+        <div class="flex items-center space-x-4">
+            <h1 class="text-xl font-bold tracking-tight">Assessor Map Issue Marking</h1>
+            <a href="comparisontool.html" class="text-[10pt] bg-black/20 hover:bg-black/40 text-slate-200 px-3 py-1.5 rounded-md border border-white/10 transition font-medium">Comparison Tool</a>
+        </div>
         <div class="flex items-center space-x-4">
             <span id="userBadge" class="text-xs bg-black/20 px-2.5 py-1 rounded-md text-slate-200 border border-white/5 font-medium"></span>
             <button id="signOutBtn" class="text-xs font-semibold bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded transition cursor-pointer">Sign Out</button>

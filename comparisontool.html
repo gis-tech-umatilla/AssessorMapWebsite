@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assessor Map Comparison Tool</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .error-dot {
+            transform: translate(-50%, -50%);
+            transform-origin: center center;
+            width: 16px !important;
+            height: 16px !important;
+            font-size: 9px !important;
+        }
+        #panzoomContainer {
+            transition: transform 0.15s cubic-bezier(0.25, 1, 0.5, 1) !important;
+            will-change: transform;
+        }
+        #panzoomSideOld, #panzoomSideNew {
+            transition: none !important;
+            will-change: transform;
+        }
+        #swipeHandle {
+            touch-action: none;
+            user-select: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col overflow-hidden select-none">
+
+    <!-- AUTHENTICATION GATE -->
+    <div id="authGate" class="fixed inset-0 bg-[#4c5c68] flex items-center justify-center z-[9999] transition-opacity duration-300">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full text-center border border-gray-100 mx-4">
+            <h2 class="text-2xl font-bold text-gray-800 tracking-tight">Umatilla County Assessor</h2>
+            <p class="text-sm text-slate-500 mt-1 mb-6">Map QA Tool Verification Portal</p>
+            <div id="authContent">
+                <button id="googleSignInBtn" class="w-full flex items-center justify-center space-x-3 bg-white hover:bg-gray-50 text-gray-700 font-semibold py-3 px-4 border border-gray-300 rounded-xl shadow-sm cursor-pointer transition-all duration-150">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 6.51l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                    <span>Sign in with Google</span>
+                </button>
+            </div>
+            <div id="authErrorMsg" class="mt-4 text-xs font-semibold text-red-600 bg-red-50 p-2.5 rounded-lg border border-red-200 hidden"></div>
+        </div>
+    </div>
+
+    <!-- HEADER BAR -->
+    <header class="bg-[#4c5c68] text-white p-4 shadow-md flex justify-between items-center z-50 border-b border-white/10">
+        <div class="flex items-center space-x-4">
+            <h1 class="text-xl font-bold tracking-tight">Assessor Map Comparison Tool</h1>
+            <a href="index.html" class="text-[10pt] bg-black/20 hover:bg-black/40 text-slate-200 px-3 py-1.5 rounded-md border border-white/10 transition font-medium">Issue Marking</a>
+        </div>
+        <div class="flex items-center space-x-4">
+            <span id="userBadge" class="text-xs bg-black/20 px-2.5 py-1 rounded-md text-slate-200 border border-white/5 font-medium"></span>
+            <button id="signOutBtn" class="text-xs font-semibold bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded transition cursor-pointer">Sign Out</button>
+        </div>
+    </header>
+
+    <!-- MAIN APP ENVIRONMENT -->
+    <div class="flex-1 flex overflow-hidden w-full relative">
+
+        <!-- LEFT SIDEBAR -->
+        <aside class="w-80 bg-[#4c5c68] text-slate-100 flex flex-col h-full border-r border-black/20 shadow-xl z-30 shrink-0">
+            
+            <!-- STAGE 1: CALIBRATION SETUP SIDEBAR -->
+            <div id="sidebarStageCalib" class="p-4 space-y-4 flex-1 overflow-y-auto flex flex-col justify-between">
+                <div class="space-y-4">
+                    <div class="border-b border-black/20 pb-2 flex flex-col">
+                        <h2 class="font-semibold text-slate-200 text-sm tracking-wider uppercase flex items-center gap-1.5">
+                            <span>ALIGNMENT SETUP</span>
+                            <span id="headerMapName" class="text-slate-200 font-semibold text-lg truncate max-w-[190px]"></span>
+                        </h2>
+                    </div>
+
+                    <!-- PHASE 1: NEW MAP SETUP -->
+                    <div id="phaseNewMap" class="space-y-3">
+                        <span class="text-xs font-bold text-[#8AFF47] uppercase tracking-wider block">NEW MAP</span>
+                        
+                        <div class="flex items-center space-x-2">
+                            <div class="flex-1 min-w-0">
+                                <select id="selectNewMap" class="w-full bg-black/20 text-xs text-slate-100 p-2 rounded border border-black/20 outline-none truncate cursor-pointer">
+                                    <option value="">Map List</option>
+                                </select>
+                            </div>
+
+                            <span class="text-[10px] text-slate-400 font-bold uppercase shrink-0">OR</span>
+
+                            <div class="flex-1 min-w-0">
+                                <label id="lblNewMap" for="uploadNewMap" class="w-full bg-[#1985a1] hover:bg-[#1985a1]/80 text-white text-xs font-semibold py-2 px-2 rounded border border-black/20 cursor-pointer block text-center truncate shadow-sm transition">
+                                    Upload PDF
+                                </label>
+                                <input type="file" id="uploadNewMap" accept="application/pdf" class="hidden"/>
+                            </div>
+                        </div>
+
+                        <div id="instructionNewMap" class="text-xs bg-black/20 p-2.5 rounded border border-black/10 text-slate-200 leading-relaxed hidden">
+                            Click to draw a box around the area you want to compare on the old map.
+                        </div>
+                    </div>
+
+                    <!-- PHASE 2: OLD MAP SETUP -->
+                    <div id="phaseOldMap" class="space-y-3 hidden">
+                        <span class="text-xs font-bold text-[#FFF547] uppercase tracking-wider block">OLD MAP</span>
+                        <label id="lblOldMap" for="uploadOldMap" class="w-full bg-[#1985a1] hover:bg-[#1985a1]/80 text-white text-xs font-semibold py-2 px-3 rounded border border-black/20 cursor-pointer block text-center truncate shadow-sm transition">
+                            Upload PDF
+                        </label>
+                        <input type="file" id="uploadOldMap" accept="application/pdf" class="hidden"/>
+
+                        <div id="instructionOldMap" class="text-xs bg-black/20 p-2.5 rounded border border-black/10 text-slate-200 leading-relaxed hidden">
+                            Click to draw a box around the same area you drew previously.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STAGE 1 COEXISTING BUTTONS -->
+                <div class="pt-4 border-t border-black/20 flex space-x-2">
+                    <button id="redoDrawingsBtnCalib" class="flex-1 py-1.5 bg-[#1985a1] hover:bg-[#1985a1]/80 text-white text-xs font-bold rounded transition cursor-pointer shadow hidden">
+                        Restart Drawing
+                    </button>
+                    <button id="resetSetupBtnCalib" class="flex-1 py-1.5 bg-black/20 hover:bg-black/30 text-xs font-semibold text-slate-200 rounded transition cursor-pointer hidden">
+                        Start Over
+                    </button>
+                </div>
+            </div>
+
+            <!-- STAGE 2: FINAL COMPARISON CONTROL SIDEBAR -->
+            <div id="sidebarStageOverlay" class="p-4 space-y-5 flex-1 overflow-y-auto hidden flex flex-col justify-between">
+                <div class="space-y-5">
+                    <!-- HEADER WITH FULL VIEW TOGGLE BUTTON -->
+                    <div class="border-b border-black/20 pb-2 flex justify-between items-center">
+                        <h2 class="font-semibold text-slate-200 text-sm tracking-wider uppercase">COMPARISON TOOLS</h2>
+                        <button id="toggleFullViewBtn" class="text-[10px] font-bold px-2 py-1 rounded bg-black/30 hover:bg-black/50 text-slate-200 border border-white/10 transition cursor-pointer flex items-center gap-1 shrink-0">
+                            <span>Full View:</span>
+                            <span id="fullViewStatusText" class="text-slate-400 uppercase">OFF</span>
+                        </button>
+                    </div>
+
+                    <!-- VIEW MODE SWITCHER & INTEGRATED PANELS -->
+                    <div class="space-y-2">
+                        <!-- Opacity Button (Default) -->
+                        <button id="modeBtnOpacity" class="w-full py-2 px-3 text-xs font-bold rounded bg-[#1985a1] text-white flex justify-between items-center cursor-pointer transition shadow-md">
+                            <span>Opacity</span>
+                        </button>
+
+                        <!-- Opacity Control Panel -->
+                        <div id="panelOpacityControl" class="space-y-3 bg-black/10 p-3 rounded-lg border border-black/10 mt-1">
+                            <div class="space-y-1 pt-1 border-t border-white/5">
+                                <div class="flex justify-between text-xs font-semibold">
+                                    <span class="text-[#8AFF47]">NEW MAP</span>
+                                    <span id="valNewOpacity" class="text-[#8AFF47]">50%</span>
+                                </div>
+                                <input type="range" id="sliderNewOpacity" min="0" max="100" value="50" class="w-full accent-[#8AFF47] cursor-pointer">
+                            </div>
+                            <div class="space-y-1">
+                                <div class="flex justify-between text-xs font-semibold">
+                                    <span class="text-[#FFF547]">OLD MAP</span>
+                                    <span id="valOldOpacity" class="text-[#FFF547]">100%</span>
+                                </div>
+                                <input type="range" id="sliderOldOpacity" min="0" max="100" value="100" class="w-full accent-[#FFF547] cursor-pointer">
+                            </div>
+                        </div>
+
+                        <!-- Transparency Button -->
+                        <button id="modeBtnTransparency" class="w-full py-2 px-3 text-xs font-bold rounded bg-black/20 hover:bg-black/30 text-slate-300 flex justify-between items-center cursor-pointer transition">
+                            <span>Transparency</span>
+                        </button>
+
+                        <!-- Transparency Control Panel -->
+                        <div id="panelTransparencyControl" class="space-y-3 bg-black/10 p-3 rounded-lg border border-black/10 mt-1 hidden">
+                            <div class="space-y-1 pt-1 border-t border-white/5">
+                                <div class="flex justify-between text-xs font-semibold">
+                                    <span class="text-[#8AFF47]">NEW MAP</span>
+                                    <span id="valNewTransparency" class="text-[#8AFF47]">50%</span>
+                                </div>
+                                <input type="range" id="sliderNewTransparency" min="0" max="100" value="50" class="w-full accent-[#8AFF47] cursor-pointer">
+                            </div>
+                            <div class="space-y-1">
+                                <div class="flex justify-between text-xs font-semibold">
+                                    <span class="text-[#FFF547]">OLD MAP</span>
+                                    <span id="valOldTransparency" class="text-[#FFF547]">0%</span>
+                                </div>
+                                <input type="range" id="sliderOldTransparency" min="0" max="100" value="0" class="w-full accent-[#FFF547] cursor-pointer">
+                            </div>
+                        </div>
+
+                        <!-- Slider Button -->
+                        <button id="modeBtnSwipe" class="w-full py-2 px-3 text-xs font-bold rounded bg-black/20 hover:bg-black/30 text-slate-300 flex justify-between items-center cursor-pointer transition">
+                            <span>Slider</span>
+                        </button>
+
+                        <!-- Side-By-Side Button -->
+                        <button id="modeBtnSideBySide" class="w-full py-2 px-3 text-xs font-bold rounded bg-black/20 hover:bg-black/30 text-slate-300 flex justify-between items-center cursor-pointer transition">
+                            <span>Side-By-Side</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- STAGE 2 COEXISTING BUTTONS -->
+                <div class="pt-4 border-t border-black/20 flex space-x-2">
+                    <button id="redoDrawingsBtn" class="flex-1 py-1.5 bg-[#1985a1] hover:bg-[#1985a1]/80 text-white text-xs font-bold rounded transition cursor-pointer shadow">
+                        Restart Drawing
+                    </button>
+                    <button id="resetSetupBtnOverlay" class="flex-1 py-1.5 bg-black/20 hover:bg-black/30 text-xs font-semibold text-slate-200 rounded transition cursor-pointer">
+                        Start Over
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- CENTER MAP VIEWPORT -->
+        <div class="flex-1 relative bg-slate-300 overflow-hidden flex items-center justify-center" id="mapViewport">
+            
+            <!-- IN-PAGE CONFIRMATION MODAL -->
+            <div id="areaConfirmModal" class="absolute z-[100] bg-slate-900/90 backdrop-blur-md text-white p-5 rounded-2xl shadow-2xl border border-slate-700 max-w-xs w-full text-center flex flex-col space-y-4 hidden">
+                <div class="space-y-1">
+                    <h3 class="text-sm font-bold text-slate-100">Selection Complete</h3>
+                    <p class="text-xs text-slate-300">Do you want to use this selected area?</p>
+                </div>
+                <div class="flex space-x-2">
+                    <button id="btnConfirmAreaNo" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg transition cursor-pointer">Redraw</button>
+                    <button id="btnConfirmAreaYes" class="flex-1 py-2 bg-[#1985a1] hover:bg-[#1985a1]/80 text-white text-xs font-bold rounded-lg transition cursor-pointer shadow-md">Use Area</button>
+                </div>
+            </div>
+
+            <!-- IN-PAGE SHEET SELECTION MODAL -->
+            <div id="sheetSelectModal" class="absolute z-[105] bg-slate-900/95 backdrop-blur-md text-white p-6 rounded-2xl shadow-2xl border border-slate-700 max-w-xs w-full text-center flex flex-col space-y-4 hidden">
+                <div class="space-y-1">
+                    <h3 class="text-sm font-bold text-slate-100">Multi-Sheet Map</h3>
+                    <p class="text-xs text-slate-300">Which sheet do you want to compare?</p>
+                </div>
+                <div id="sheetButtonsContainer" class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1">
+                    <!-- Dynamic Sheet Buttons -->
+                </div>
+            </div>
+
+            <!-- ZOOM CONTROLS -->
+            <div class="absolute top-4 right-4 z-40 bg-[#4c5c68]/90 backdrop-blur text-white rounded-lg shadow-2xl p-1 flex space-x-1 border border-white/10 hidden" id="zoomControls">
+                <button id="zoomIn" class="px-3 py-1 bg-black/20 hover:bg-black/30 rounded font-bold cursor-pointer">+</button>
+                <button id="zoomOut" class="px-3 py-1 bg-black/20 hover:bg-black/30 rounded font-bold cursor-pointer">-</button>
+                <button id="zoomReset" class="px-2 py-1 bg-black/20 hover:bg-black/40 rounded text-xs cursor-pointer">Reset View</button>
+            </div>
+
+            <!-- SINGLE PANZOOM CONTAINER -->
+            <div id="panzoomContainer" class="inline-block relative">
+                
+                <!-- CALIBRATION MAP WRAPPER -->
+                <div id="calibMapWrapper" class="relative hidden select-none bg-white shadow-2xl">
+                    <canvas id="calibCanvas" class="block bg-white"></canvas>
+                    <svg id="calibSvg" class="absolute inset-0 z-10 w-full h-full cursor-crosshair pointer-events-auto">
+                        <path id="calibMaskPath" d="" fill="rgba(15, 23, 42, 0.45)" fill-rule="evenodd" stroke="none"/>
+                        <polygon id="calibPoly" points="" fill="none" stroke="#dc2626" stroke-width="3" stroke-dasharray="6,6"/>
+                    </svg>
+                    <div id="calibNodes" class="absolute inset-0 pointer-events-none z-20"></div>
+                </div>
+
+                <!-- OVERLAY COMPOSITE WRAPPER -->
+                <div id="overlayWrapper" class="relative hidden select-none shadow-2xl bg-white border border-slate-400 overflow-hidden">
+                    <div id="overlayFlexContainer" class="relative bg-white">
+                        <canvas id="canvasCropOld" class="block bg-white shrink-0"></canvas>
+                        
+                        <div id="swipeContainer" class="absolute inset-0 overflow-hidden pointer-events-none">
+                            <canvas id="canvasCropNew" class="absolute top-0 left-0 bg-white"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Swipe Handle: 15px grab zone with a centered 5px visual line inside -->
+                    <div id="swipeHandle" class="absolute top-0 bottom-0 w-[15px] cursor-ew-resize z-50 flex items-center justify-center hidden -ml-[7.5px]">
+                        <!-- Visual 5px Vertical Line -->
+                        <div class="absolute inset-y-0 w-[5px] bg-purple-500/80 hover:bg-purple-600 transition-colors"></div>
+                        
+                        <!-- Circle Grab Handle Button -->
+                        <div class="w-7 h-7 bg-purple-600 rounded-full border-2 border-white flex items-center justify-center text-white text-xs font-bold shadow-2xl pointer-events-none z-10">↔</div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- DUAL LINKED VIEWPORTS (SIDE-BY-SIDE MODE) -->
+            <div id="sideBySideContainer" class="w-full h-full flex flex-row items-center justify-center gap-4 p-4 hidden">
+                <div id="viewportSideNew" class="flex-1 h-full relative overflow-hidden bg-[#cad5e2] rounded-xl shadow-inner border border-[#FFFFFF] flex items-center justify-center">
+                    <span class="absolute top-3 left-3 z-30 bg-black/60 text-[#8AFF47] text-[10px] font-bold px-2 py-1 rounded backdrop-blur">NEW MAP</span>
+                    <div id="panzoomSideNew" class="inline-block relative">
+                        <canvas id="canvasSideNew" class="bg-white shadow-2xl block"></canvas>
+                    </div>
+                </div>
+
+                <div id="viewportSideOld" class="flex-1 h-full relative overflow-hidden bg-[#cad5e2] rounded-xl shadow-inner border border-[#FFFFFF] flex items-center justify-center">
+                    <span class="absolute top-3 left-3 z-30 bg-black/60 text-[#FFF547] text-[10px] font-bold px-2 py-1 rounded backdrop-blur">OLD MAP</span>
+                    <div id="panzoomSideOld" class="inline-block relative">
+                        <canvas id="canvasSideOld" class="bg-white shadow-2xl block"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- INITIAL PLACEHOLDER TEXT -->
+            <div id="placeholderText" class="text-[#4c5c68] text-center z-10">
+                <p class="text-lg font-bold opacity-80 text-[#4c5c68]">No Assessor Map Selected</p>
+                <p class="text-sm text-slate-500 font-medium">Choose or Upload a New Map From The Left Sidebar</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+        const SUPABASE_URL = "https://wsacgqykgmnsxzaqyvpn.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_Tg79inBzykOOvoyN0ne1Jw_i7BpKu4D";
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const EXPLICIT_ALLOWED_EMAILS = [
+            "ian.freel@umatillacounty.gov",
+            "matthew.lynch@umatillacounty.gov",
+            "mckenzie.bowey@umatillacounty.gov",
+            "aspen.buckingham@umatillacounty.gov"
+        ];
+
+        const authGate = document.getElementById('authGate');
+        const googleSignInBtn = document.getElementById('googleSignInBtn');
+        const authErrorMsg = document.getElementById('authErrorMsg');
+        const userBadge = document.getElementById('userBadge');
+        const signOutBtn = document.getElementById('signOutBtn');
+
+        let mapsRegistry = [];
+        let pointsOld = []; 
+        let pointsNew = [];
+        let currentActiveTab = 'New'; 
+        let activeComparisonMode = 'opacity'; 
+        let isFullViewMode = false;
+
+        let pdfImageNew = null;
+        let pdfImageOld = null;
+        let dimNew = { w: 0, h: 0 };
+        let dimOld = { w: 0, h: 0 };
+
+        let activeNewPageNum = 1;
+        let activeOldPageNum = 1;
+
+        let panzoomInstance = null;
+        let pzSideOld = null;
+        let pzSideNew = null;
+
+        let activeOldBlobUrl = null;
+        let activeNewBlobUrl = null;
+
+        initAuthCheck();
+
+        async function initAuthCheck() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            evaluateUserSession(session);
+            supabaseClient.auth.onAuthStateChange((_event, session) => evaluateUserSession(session));
+        }
+
+        function evaluateUserSession(session) {
+            if (session && session.user) {
+                const userEmail = session.user.email.toLowerCase();
+                if (EXPLICIT_ALLOWED_EMAILS.map(e => e.toLowerCase()).includes(userEmail)) {
+                    authGate.classList.add('hidden');
+                    userBadge.innerText = userEmail;
+                    fetchMapsList();
+                } else {
+                    authGate.classList.remove('hidden');
+                    authErrorMsg.innerText = `Access Denied: ${userEmail} is not authorized.`;
+                    authErrorMsg.classList.remove('hidden');
+                }
+            } else {
+                authGate.classList.remove('hidden');
+            }
+        }
+
+        googleSignInBtn.addEventListener('click', async () => {
+            await supabaseClient.auth.signInWithOAuth({
+                provider: 'google',
+                options: { redirectTo: window.location.href }
+            });
+        });
+
+        signOutBtn.addEventListener('click', async () => {
+            await supabaseClient.auth.signOut();
+            window.location.reload();
+        });
+
+        async function fetchMapsList() {
+            const { data, error } = await supabaseClient.from('maps_registry').select('*').order('map_name', { ascending: true });
+            if (error) return console.error(error);
+            mapsRegistry = data || [];
+
+            const selectNew = document.getElementById('selectNewMap');
+            let opts = '<option value="">Map List</option>';
+            
+            for (const m of mapsRegistry) {
+                const baseName = m.map_name.replace(/\.pdf$/i, '');
+                try {
+                    const loadingTask = pdfjsLib.getDocument({ url: m.file_url, rangeChunkSize: 65536 });
+                    const pdfDoc = await loadingTask.promise;
+                    if (pdfDoc.numPages > 1) {
+                        for (let p = 1; p <= pdfDoc.numPages; p++) {
+                            opts += `<option value="${m.id}_page_${p}">${baseName} - Sheet ${p}</option>`;
+                        }
+                    } else {
+                        opts += `<option value="${m.id}">${baseName}</option>`;
+                    }
+                } catch(err) {
+                    opts += `<option value="${m.id}">${baseName}</option>`;
+                }
+            }
+            selectNew.innerHTML = opts;
+        }
+
+        function getCleanFileName(file) {
+            if (!file) return 'Upload PDF';
+            return file.name.replace(/\.[^/.]+$/, "");
+        }
+
+        function updateHeaderTitle(mapName) {
+            document.getElementById('headerMapName').innerText = mapName ? `- ${mapName}` : '';
+        }
+
+        function promptSheetSelection(pdfDoc, fileName, onSelect) {
+            const modal = document.getElementById('sheetSelectModal');
+            const container = document.getElementById('sheetButtonsContainer');
+            container.innerHTML = '';
+            
+            for (let i = 1; i <= pdfDoc.numPages; i++) {
+                const btn = document.createElement('button');
+                btn.className = "py-2 px-3 bg-[#1985a1] hover:bg-[#1985a1]/80 text-white text-xs font-bold rounded-lg transition cursor-pointer shadow";
+                btn.innerText = `Sheet ${i}`;
+                btn.onclick = () => {
+                    modal.classList.add('hidden');
+                    onSelect(i);
+                };
+                container.appendChild(btn);
+            }
+            modal.classList.remove('hidden');
+        }
+
+        function sortQuadPoints(pts) {
+            if (pts.length !== 4) return pts;
+            const sortedByY = [...pts].sort((a, b) => a.y - b.y);
+            const topTwo = sortedByY.slice(0, 2).sort((a, b) => a.x - b.x);
+            const bottomTwo = sortedByY.slice(2, 4).sort((a, b) => a.x - b.x);
+
+            return [
+                topTwo[0],     // Top-Left
+                topTwo[1],     // Top-Right
+                bottomTwo[1],  // Bottom-Right
+                bottomTwo[0]   // Bottom-Left
+            ];
+        }
+
+        // TOGGLE FULL VIEW MODE HANDLER
+        const toggleFullViewBtn = document.getElementById('toggleFullViewBtn');
+        const fullViewStatusText = document.getElementById('fullViewStatusText');
+
+        if (toggleFullViewBtn) {
+            toggleFullViewBtn.onclick = () => {
+                isFullViewMode = !isFullViewMode;
+                if (isFullViewMode) {
+                    fullViewStatusText.innerText = 'ON';
+                    fullViewStatusText.className = 'text-[#8AFF47] font-bold uppercase';
+                    toggleFullViewBtn.className = 'text-[10px] font-bold px-2 py-1 rounded bg-[#1985a1] text-white border border-[#8AFF47]/50 transition cursor-pointer flex items-center gap-1 shrink-0 shadow-md';
+                } else {
+                    fullViewStatusText.innerText = 'OFF';
+                    fullViewStatusText.className = 'text-slate-400 uppercase';
+                    toggleFullViewBtn.className = 'text-[10px] font-bold px-2 py-1 rounded bg-black/30 hover:bg-black/50 text-slate-200 border border-white/10 transition cursor-pointer flex items-center gap-1 shrink-0';
+                }
+                
+                if (pointsOld.length === 4 && pointsNew.length === 4) {
+                    alignAndComposite();
+                }
+            };
+        }
+
+        // --- STEP 1: NEW MAP LOADERS ---
+        document.getElementById('selectNewMap')?.addEventListener('change', async (e) => {
+            const val = e.target.value;
+            if (!val) return;
+
+            const [mapId, pageStr] = val.split('_page_');
+            const pageNum = pageStr ? parseInt(pageStr, 10) : 1;
+
+            const mapObj = mapsRegistry.find(m => m.id == mapId);
+            if (!mapObj) return;
+
+            document.getElementById('uploadNewMap').value = '';
+            document.getElementById('lblNewMap').innerText = 'Upload PDF';
+            if (activeNewBlobUrl) { URL.revokeObjectURL(activeNewBlobUrl); activeNewBlobUrl = null; }
+
+            activeNewPageNum = pageNum;
+            const baseName = mapObj.map_name.replace(/\.pdf$/i, '');
+            const cleanName = pageStr ? `${baseName} S${pageNum}` : baseName;
+            updateHeaderTitle(cleanName);
+
+            document.getElementById('resetSetupBtnCalib')?.classList.remove('hidden');
+
+            const res = await renderPdfToCanvas(mapObj.file_url, pageNum);
+            pdfImageNew = res.imgData;
+            dimNew = { w: res.w, h: res.h };
+            
+            document.getElementById('instructionNewMap').classList.remove('hidden');
+        });
+
+        document.getElementById('uploadNewMap')?.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById('selectNewMap').value = '';
+            const baseName = getCleanFileName(file);
+
+            if (activeNewBlobUrl) URL.revokeObjectURL(activeNewBlobUrl);
+            activeNewBlobUrl = URL.createObjectURL(file);
+
+            const pdfDoc = await pdfjsLib.getDocument(activeNewBlobUrl).promise;
+
+            const loadChosenNewSheet = async (sheetNum) => {
+                activeNewPageNum = sheetNum;
+                const cleanName = pdfDoc.numPages > 1 ? `${baseName} S${sheetNum}` : baseName;
+                document.getElementById('lblNewMap').innerText = cleanName;
+                updateHeaderTitle(cleanName);
+
+                document.getElementById('resetSetupBtnCalib')?.classList.remove('hidden');
+
+                const res = await renderPdfToCanvas(activeNewBlobUrl, sheetNum);
+                pdfImageNew = res.imgData;
+                dimNew = { w: res.w, h: res.h };
+                document.getElementById('instructionNewMap').classList.remove('hidden');
+            };
+
+            if (pdfDoc.numPages > 1) {
+                promptSheetSelection(pdfDoc, baseName, loadChosenNewSheet);
+            } else {
+                loadChosenNewSheet(1);
+            }
+        });
+
+        // --- STEP 2: OLD MAP LOADER ---
+        document.getElementById('uploadOldMap')?.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const baseName = getCleanFileName(file);
+
+            if (activeOldBlobUrl) URL.revokeObjectURL(activeOldBlobUrl);
+            activeOldBlobUrl = URL.createObjectURL(file);
+
+            currentActiveTab = 'Old';
+            const pdfDoc = await pdfjsLib.getDocument(activeOldBlobUrl).promise;
+
+            const loadChosenOldSheet = async (sheetNum) => {
+                activeOldPageNum = sheetNum;
+                const cleanName = pdfDoc.numPages > 1 ? `${baseName} S${sheetNum}` : baseName;
+                document.getElementById('lblOldMap').innerText = cleanName;
+
+                const res = await renderPdfToCanvas(activeOldBlobUrl, sheetNum);
+                pdfImageOld = res.imgData;
+                dimOld = { w: res.w, h: res.h };
+                
+                document.getElementById('instructionOldMap').classList.remove('hidden');
+                drawQuadUI();
+            };
+
+            if (pdfDoc.numPages > 1) {
+                promptSheetSelection(pdfDoc, baseName, loadChosenOldSheet);
+            } else {
+                loadChosenOldSheet(1);
+            }
+        });
+
+        async function renderPdfToCanvas(url, pageNum = 1) {
+            placeholderText.innerHTML = "<p class='text-[#1985a1] font-semibold animate-pulse'>Rendering Map Sheet...</p>";
+            placeholderText.classList.remove('hidden');
+            
+            document.getElementById('calibMapWrapper').classList.add('hidden');
+            document.getElementById('overlayWrapper').classList.add('hidden');
+            document.getElementById('sideBySideContainer').classList.add('hidden');
+            document.getElementById('panzoomContainer').classList.remove('hidden');
+            document.getElementById('zoomControls').classList.add('hidden');
+
+            if (panzoomInstance) panzoomInstance.destroy();
+
+            try {
+                const pdf = await pdfjsLib.getDocument(url).promise;
+                const page = await pdf.getPage(pageNum);
+                const viewport = page.getViewport({ scale: 2.5 });
+                
+                const canvas = document.getElementById('calibCanvas');
+                const ctx = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                await page.render({ canvasContext: ctx, viewport }).promise;
+
+                const svg = document.getElementById('calibSvg');
+                svg.setAttribute('viewBox', `0 0 ${viewport.width} ${viewport.height}`);
+
+                placeholderText.classList.add('hidden');
+                document.getElementById('calibMapWrapper').classList.remove('hidden');
+                document.getElementById('zoomControls').classList.remove('hidden');
+
+                const calibWrapper = document.getElementById('calibMapWrapper');
+                const scaledWidth = Math.min(window.innerWidth * 0.65, viewport.width / 2);
+                const scaledHeight = scaledWidth * (viewport.height / viewport.width);
+
+                calibWrapper.style.width = `${scaledWidth}px`;
+                calibWrapper.style.height = `${scaledHeight}px`;
+
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+
+                const container = document.getElementById('panzoomContainer');
+                panzoomInstance = Panzoom(container, { maxScale: 6, minScale: 0.5, canvas: true, animate: true });
+
+                setupZoomListeners();
+
+                return {
+                    imgData: ctx.getImageData(0, 0, canvas.width, canvas.height),
+                    w: canvas.width,
+                    h: canvas.height
+                };
+            } catch (err) {
+                placeholderText.innerHTML = `<p class='text-red-400'>Error loading map PDF sheet.</p>`;
+                console.error(err);
+            }
+        }
+
+        function setupZoomListeners() {
+            const zReset = document.getElementById('zoomReset');
+            if (zReset) zReset.onclick = () => {
+                if (activeComparisonMode === 'sidebyside') {
+                    if (pzSideOld) pzSideOld.reset();
+                    if (pzSideNew) pzSideNew.reset();
+                } else if (panzoomInstance) {
+                    panzoomInstance.reset();
+                }
+            };
+
+            const zIn = document.getElementById('zoomIn');
+            if (zIn) zIn.onclick = () => {
+                if (activeComparisonMode === 'sidebyside') {
+                    if (pzSideOld) pzSideOld.zoomIn();
+                } else if (panzoomInstance) {
+                    panzoomInstance.zoomIn();
+                }
+            };
+
+            const zOut = document.getElementById('zoomOut');
+            if (zOut) zOut.onclick = () => {
+                if (activeComparisonMode === 'sidebyside') {
+                    if (pzSideOld) pzSideOld.zoomOut();
+                } else if (panzoomInstance) {
+                    panzoomInstance.zoomOut();
+                }
+            };
+
+            const container = document.getElementById('panzoomContainer');
+            if (container && container.parentElement) {
+                container.parentElement.onwheel = (e) => {
+                    if (activeComparisonMode === 'sidebyside') return;
+                    if (!panzoomInstance) return;
+                    e.preventDefault();
+                    panzoomInstance.zoomWithWheel(e);
+                };
+            }
+        }
+
+        // --- CLAMPED QUAD SELECTION ENGINE WITH POPUP PROMPT ---
+        const calibSvg = document.getElementById('calibSvg');
+        const areaConfirmModal = document.getElementById('areaConfirmModal');
+        
+        function getClampedPercents(e) {
+            const wrapper = document.getElementById('calibMapWrapper');
+            const rect = wrapper.getBoundingClientRect();
+            
+            let xPct = ((e.clientX - rect.left) / rect.width) * 100;
+            let yPct = ((e.clientY - rect.top) / rect.height) * 100;
+
+            if (xPct < 0) xPct = 0;
+            if (xPct > 100) xPct = 100;
+            if (yPct < 0) yPct = 0;
+            if (yPct > 100) yPct = 100;
+
+            return { x: xPct, y: yPct };
+        }
+
+        if (calibSvg) {
+            calibSvg.onclick = (e) => {
+                const points = currentActiveTab === 'New' ? pointsNew : pointsOld;
+                if (points.length >= 4) return;
+
+                const clamped = getClampedPercents(e);
+                points.push(clamped);
+                drawQuadUI();
+
+                if (points.length === 4) {
+                    areaConfirmModal.classList.remove('hidden');
+                }
+            };
+        }
+
+        window.addEventListener('pointermove', (e) => {
+            const calibWrapper = document.getElementById('calibMapWrapper');
+            if (calibWrapper.classList.contains('hidden') || !areaConfirmModal.classList.contains('hidden') || !document.getElementById('sheetSelectModal').classList.contains('hidden')) return;
+
+            const points = currentActiveTab === 'New' ? pointsNew : pointsOld;
+            if (points.length > 0 && points.length < 4) {
+                const clamped = getClampedPercents(e);
+                drawQuadUI(clamped);
+            }
+        });
+
+        // IN-PAGE POPUP CONFIRMATION ACTIONS
+        document.getElementById('btnConfirmAreaNo')?.addEventListener('click', () => {
+            areaConfirmModal.classList.add('hidden');
+            if (currentActiveTab === 'New') {
+                pointsNew = [];
+            } else {
+                pointsOld = [];
+            }
+            drawQuadUI();
+        });
+
+        document.getElementById('btnConfirmAreaYes')?.addEventListener('click', async () => {
+            areaConfirmModal.classList.add('hidden');
+
+            document.getElementById('redoDrawingsBtnCalib')?.classList.remove('hidden');
+
+            if (currentActiveTab === 'New') {
+                document.getElementById('phaseNewMap').classList.add('hidden');
+                document.getElementById('phaseOldMap').classList.remove('hidden');
+                
+                if (activeOldBlobUrl) {
+                    currentActiveTab = 'Old';
+                    document.getElementById('instructionOldMap').classList.remove('hidden');
+                    const res = await renderPdfToCanvas(activeOldBlobUrl, activeOldPageNum);
+                    pdfImageOld = res.imgData;
+                    dimOld = { w: res.w, h: res.h };
+                    drawQuadUI();
+                } else {
+                    document.getElementById('calibMapWrapper').classList.add('hidden');
+                    placeholderText.innerHTML = `
+                        <p class="text-lg font-bold opacity-80 text-[#4c5c68]">No Assessor Map Selected</p>
+                        <p class="text-sm text-slate-500 font-medium">Choose or Upload a New Map From The Left Sidebar</p>
+                    `;
+                    placeholderText.classList.remove('hidden');
+                }
+            } else {
+                processFinalOverlay();
+            }
+        });
+
+        function drawQuadUI(liveMousePos = null) {
+            const points = currentActiveTab === 'New' ? pointsNew : pointsOld;
+            const nodesContainer = document.getElementById('calibNodes');
+            const poly = document.getElementById('calibPoly');
+            const maskPath = document.getElementById('calibMaskPath');
+            const canvas = document.getElementById('calibCanvas');
+            nodesContainer.innerHTML = '';
+
+            const canvasWidth = canvas.width || 1;
+            const canvasHeight = canvas.height || 1;
+
+            const activePoints = liveMousePos && points.length > 0 && points.length < 4 
+                ? [...points, liveMousePos] 
+                : points;
+
+            let ptsStr = '';
+            let pathCmds = '';
+
+            activePoints.forEach((pt, i) => {
+                const px = (pt.x / 100) * canvasWidth;
+                const py = (pt.y / 100) * canvasHeight;
+                ptsStr += `${px},${py} `;
+                pathCmds += (i === 0 ? `M ${px} ${py} ` : `L ${px} ${py} `);
+            });
+
+            if (activePoints.length > 0) {
+                pathCmds += 'Z';
+            }
+
+            points.forEach((pt, i) => {
+                const node = document.createElement('div');
+                node.className = `error-dot absolute rounded-full ${currentActiveTab === 'New' ? 'bg-[#8AFF47]' : 'bg-[#FFF547]'} font-bold flex items-center justify-center shadow-lg pointer-events-auto`;
+                node.style.left = `${pt.x}%`;
+                node.style.top = `${pt.y}%`;
+                nodesContainer.appendChild(node);
+            });
+
+            if (activePoints.length >= 3) {
+                const outerRect = `M 0 0 H ${canvasWidth} V ${canvasHeight} H 0 Z `;
+                maskPath.setAttribute('d', outerRect + pathCmds);
+            } else {
+                maskPath.setAttribute('d', '');
+            }
+
+            poly.setAttribute('points', ptsStr.trim());
+            poly.setAttribute('stroke', '#8c8b8b');
+            poly.setAttribute('stroke-width', '6');
+        }
+
+        const handleRestartSetup = () => window.location.reload();
+        document.getElementById('resetSetupBtnCalib')?.addEventListener('click', handleRestartSetup);
+        document.getElementById('resetSetupBtnOverlay')?.addEventListener('click', handleRestartSetup);
+
+        // --- COMPOSITE OVERLAY PROCESSING ---
+        function processFinalOverlay() {
+            document.getElementById('sidebarStageCalib').classList.add('hidden');
+            document.getElementById('sidebarStageOverlay').classList.remove('hidden');
+
+            document.getElementById('calibMapWrapper').classList.add('hidden');
+            document.getElementById('overlayWrapper').classList.remove('hidden');
+
+            alignAndComposite();
+        }
+
+function getExtrapolatedNewPoint(x, y, pOld, pNew) {
+            const wOldTop = pOld[1].x - pOld[0].x || 1;
+            const wOldBot = pOld[2].x - pOld[3].x || 1;
+            const hOldLeft = pOld[3].y - pOld[0].y || 1;
+            const hOldRight = pOld[2].y - pOld[1].y || 1;
+
+            const avgWOld = (wOldTop + wOldBot) / 2;
+            const avgHOld = (hOldLeft + hOldRight) / 2;
+
+            const u = (x - pOld[0].x) / avgWOld;
+            const v = (y - pOld[0].y) / avgHOld;
+
+            const srcX = (1 - u) * (1 - v) * pNew[0].x + u * (1 - v) * pNew[1].x + u * v * pNew[2].x + (1 - u) * v * pNew[3].x;
+            const srcY = (1 - u) * (1 - v) * pNew[0].y + u * (1 - v) * pNew[1].y + u * v * pNew[2].y + (1 - u) * v * pNew[3].y;
+
+            return { x: srcX, y: srcY };
+        }
+
+        function alignAndComposite() {
+            const sortedNew = sortQuadPoints(pointsNew);
+            const sortedOld = sortQuadPoints(pointsOld);
+
+            const pOldPx = sortedOld.map(p => ({ x: (p.x / 100) * dimOld.w, y: (p.y / 100) * dimOld.h }));
+            const pNewPx = sortedNew.map(p => ({ x: (p.x / 100) * dimNew.w, y: (p.y / 100) * dimNew.h }));
+
+            let cropW, cropH, srcNew, srcOld;
+
+            if (isFullViewMode) {
+                // In Full View Mode: Extrapolate full sheet dimensions using control points mapping
+                cropW = dimOld.w;
+                cropH = dimOld.h;
+
+                srcOld = [
+                    { x: 0, y: 0 },
+                    { x: dimOld.w, y: 0 },
+                    { x: dimOld.w, y: dimOld.h },
+                    { x: 0, y: dimOld.h }
+                ];
+
+                srcNew = [
+                    getExtrapolatedNewPoint(0, 0, pOldPx, pNewPx),
+                    getExtrapolatedNewPoint(dimOld.w, 0, pOldPx, pNewPx),
+                    getExtrapolatedNewPoint(dimOld.w, dimOld.h, pOldPx, pNewPx),
+                    getExtrapolatedNewPoint(0, dimOld.h, pOldPx, pNewPx)
+                ];
+            } else {
+                // In Cropped Mode (Default): Align and crop strictly to bounding control box
+                const widthTop = Math.hypot(pOldPx[1].x - pOldPx[0].x, pOldPx[1].y - pOldPx[0].y);
+                const widthBottom = Math.hypot(pOldPx[2].x - pOldPx[3].x, pOldPx[2].y - pOldPx[3].y);
+                cropW = Math.round(Math.max(widthTop, widthBottom));
+
+                const heightLeft = Math.hypot(pOldPx[3].x - pOldPx[0].x, pOldPx[3].y - pOldPx[0].y);
+                const heightRight = Math.hypot(pOldPx[2].x - pOldPx[1].x, pOldPx[2].y - pOldPx[1].y);
+                cropH = Math.round(Math.max(heightLeft, heightRight));
+
+                srcOld = pOldPx;
+                srcNew = pNewPx;
+            }
+
+            // Primary Composite Canvases
+            const cOld = document.getElementById('canvasCropOld');
+            const cNew = document.getElementById('canvasCropNew');
+            cOld.width = cropW; cOld.height = cropH;
+            cNew.width = cropW; cNew.height = cropH;
+
+            // Side-by-side Dual Canvases
+            const cSideOld = document.getElementById('canvasSideOld');
+            const cSideNew = document.getElementById('canvasSideNew');
+            cSideOld.width = cropW; cSideOld.height = cropH;
+            cSideNew.width = cropW; cSideNew.height = cropH;
+
+            const ctxOld = cOld.getContext('2d');
+            drawBilinearQuad(ctxOld, pdfImageOld, dimOld.w, dimOld.h, srcOld, cropW, cropH);
+            cSideOld.getContext('2d').drawImage(cOld, 0, 0);
+
+            const ctxNew = cNew.getContext('2d');
+            drawBilinearQuad(ctxNew, pdfImageNew, dimNew.w, dimNew.h, srcNew, cropW, cropH);
+            cSideNew.getContext('2d').drawImage(cNew, 0, 0);
+
+            const displayW = Math.min(window.innerWidth * 0.60, cropW);
+            const displayH = displayW * (cropH / cropW);
+
+            const overlayWrapper = document.getElementById('overlayWrapper');
+            overlayWrapper.style.width = `${displayW}px`;
+            overlayWrapper.style.height = `${displayH}px`;
+
+            cOld.style.width = `${displayW}px`;
+            cOld.style.height = `${displayH}px`;
+
+            if (panzoomInstance) panzoomInstance.destroy();
+            const container = document.getElementById('panzoomContainer');
+            panzoomInstance = Panzoom(container, { maxScale: 8, minScale: 0.5, canvas: true, animate: true });
+
+            setupZoomListeners();
+            setComparisonMode(activeComparisonMode || 'opacity');
+        }
+
+        function drawBilinearQuad(targetCtx, srcImageData, srcW, srcH, quad, destW, destH) {
+            const destImg = targetCtx.createImageData(destW, destH);
+            const srcData = srcImageData.data;
+            const dstData = destImg.data;
+
+            for (let y = 0; y < destH; y++) {
+                const v = y / destH;
+                for (let x = 0; x < destW; x++) {
+                    const u = x / destW;
+
+                    const srcX = (1 - u) * (1 - v) * quad[0].x + u * (1 - v) * quad[1].x + u * v * quad[2].x + (1 - u) * v * quad[3].x;
+                    const srcY = (1 - u) * (1 - v) * quad[0].y + u * (1 - v) * quad[1].y + u * v * quad[2].y + (1 - u) * v * quad[3].y;
+
+                    const sx = Math.floor(srcX);
+                    const sy = Math.floor(srcY);
+
+                    if (sx >= 0 && sx < srcW && sy >= 0 && sy < srcH) {
+                        const srcIdx = (sy * srcW + sx) * 4;
+                        const dstIdx = (y * destW + x) * 4;
+
+                        dstData[dstIdx] = srcData[srcIdx];
+                        dstData[dstIdx + 1] = srcData[srcIdx + 1];
+                        dstData[dstIdx + 2] = srcData[srcIdx + 2];
+                        dstData[dstIdx + 3] = srcData[srcIdx + 3];
+                    }
+                }
+            }
+            targetCtx.putImageData(destImg, 0, 0);
+        }
+
+        // --- COMPARISON SLIDERS (OPACITY & TRANSPARENCY) ---
+        const cOld = document.getElementById('canvasCropOld');
+        const cNew = document.getElementById('canvasCropNew');
+        const cSideOld = document.getElementById('canvasSideOld');
+        const cSideNew = document.getElementById('canvasSideNew');
+
+        // Opacity Tool Sliders
+        document.getElementById('sliderOldOpacity')?.addEventListener('input', (e) => {
+            const val = e.target.value;
+            cOld.style.opacity = val / 100;
+            document.getElementById('valOldOpacity').innerText = `${val}%`;
+        });
+
+        document.getElementById('sliderNewOpacity')?.addEventListener('input', (e) => {
+            const val = e.target.value;
+            cNew.style.opacity = val / 100;
+            document.getElementById('valNewOpacity').innerText = `${val}%`;
+        });
+
+        // Transparency Tool Sliders
+        document.getElementById('sliderOldTransparency')?.addEventListener('input', (e) => {
+            const val = e.target.value;
+            cOld.style.opacity = (100 - val) / 100;
+            document.getElementById('valOldTransparency').innerText = `${val}%`;
+        });
+
+        document.getElementById('sliderNewTransparency')?.addEventListener('input', (e) => {
+            const val = e.target.value;
+            cNew.style.opacity = (100 - val) / 100;
+            document.getElementById('valNewTransparency').innerText = `${val}%`;
+        });
+
+        // --- COMPARISON TOOL SWITCHER ---
+        const modeBtnOpacity = document.getElementById('modeBtnOpacity');
+        const modeBtnTransparency = document.getElementById('modeBtnTransparency');
+        const modeBtnSwipe = document.getElementById('modeBtnSwipe');
+        const modeBtnSideBySide = document.getElementById('modeBtnSideBySide');
+
+        const panelOpacityControl = document.getElementById('panelOpacityControl');
+        const panelTransparencyControl = document.getElementById('panelTransparencyControl');
+        const swipeContainer = document.getElementById('swipeContainer');
+        const swipeHandle = document.getElementById('swipeHandle');
+        const overlayWrapper = document.getElementById('overlayWrapper');
+        const panzoomContainer = document.getElementById('panzoomContainer');
+        const sideBySideContainer = document.getElementById('sideBySideContainer');
+
+        if (modeBtnOpacity) modeBtnOpacity.onclick = () => setComparisonMode('opacity');
+        if (modeBtnTransparency) modeBtnTransparency.onclick = () => setComparisonMode('transparency');
+        if (modeBtnSwipe) modeBtnSwipe.onclick = () => setComparisonMode('swipe');
+        if (modeBtnSideBySide) modeBtnSideBySide.onclick = () => setComparisonMode('sidebyside');
+
+        function setComparisonMode(mode) {
+            activeComparisonMode = mode;
+
+            const defaultBtnClass = "w-full py-2 px-3 text-xs font-bold rounded bg-black/20 hover:bg-black/30 text-slate-300 flex justify-between items-center cursor-pointer transition";
+            const activeBtnClass = "w-full py-2 px-3 text-xs font-bold rounded bg-[#1985a1] text-white flex justify-between items-center cursor-pointer transition shadow-md";
+
+            if (modeBtnOpacity) modeBtnOpacity.className = defaultBtnClass;
+            if (modeBtnTransparency) modeBtnTransparency.className = defaultBtnClass;
+            if (modeBtnSwipe) modeBtnSwipe.className = defaultBtnClass;
+            if (modeBtnSideBySide) modeBtnSideBySide.className = defaultBtnClass;
+
+            swipeHandle.classList.add('hidden');
+            panelOpacityControl.classList.add('hidden');
+            panelTransparencyControl.classList.add('hidden');
+
+            const displayW = parseFloat(cOld.style.width);
+            const displayH = parseFloat(cOld.style.height);
+
+            if (mode === 'opacity' || mode === 'transparency' || mode === 'swipe') {
+                panzoomContainer.classList.remove('hidden');
+                overlayWrapper.classList.remove('hidden');
+                sideBySideContainer.classList.add('hidden');
+
+                cNew.style.width = `${displayW}px`;
+                cNew.style.height = `${displayH}px`;
+
+                overlayWrapper.style.width = `${displayW}px`;
+                overlayWrapper.style.height = `${displayH}px`;
+
+                if (mode === 'opacity') {
+                    if (modeBtnOpacity) modeBtnOpacity.className = activeBtnClass;
+                    panelOpacityControl.classList.remove('hidden');
+                    swipeContainer.style.width = '100%';
+
+                    cNew.style.opacity = document.getElementById('sliderNewOpacity').value / 100;
+                    cOld.style.opacity = document.getElementById('sliderOldOpacity').value / 100;
+                } else if (mode === 'transparency') {
+                    if (modeBtnTransparency) modeBtnTransparency.className = activeBtnClass;
+                    panelTransparencyControl.classList.remove('hidden');
+                    swipeContainer.style.width = '100%';
+
+                    cNew.style.opacity = (100 - document.getElementById('sliderNewTransparency').value) / 100;
+                    cOld.style.opacity = (100 - document.getElementById('sliderOldTransparency').value) / 100;
+                } else {
+                    if (modeBtnSwipe) modeBtnSwipe.className = activeBtnClass;
+                    swipeHandle.classList.remove('hidden');
+                    cNew.style.opacity = '1';
+                    cOld.style.opacity = '1';
+                    setSwipePosition(50);
+                }
+            } else if (mode === 'sidebyside') {
+                if (modeBtnSideBySide) modeBtnSideBySide.className = activeBtnClass;
+
+                panzoomContainer.classList.add('hidden');
+                overlayWrapper.classList.add('hidden');
+                sideBySideContainer.classList.remove('hidden');
+
+                cSideNew.style.opacity = '1';
+                cSideOld.style.opacity = '1';
+
+                setupLinkedSideBySidePanzoom();
+            }
+        }
+
+        // --- STABLE MASTER-SLAVE DUAL LINKED PANZOOM ENGINE ---
+        let activeHoveredPane = null;
+
+        function setupLinkedSideBySidePanzoom() {
+            const elemOld = document.getElementById('panzoomSideOld');
+            const elemNew = document.getElementById('panzoomSideNew');
+            const vpOld = document.getElementById('viewportSideOld');
+            const vpNew = document.getElementById('viewportSideNew');
+
+            if (pzSideOld) pzSideOld.destroy();
+            if (pzSideNew) pzSideNew.destroy();
+
+            const aspect = cOld.width / cOld.height;
+            const targetH = Math.min(vpOld.offsetHeight * 0.85, 600);
+            const targetW = targetH * aspect;
+
+            cSideOld.style.width = `${targetW}px`;
+            cSideOld.style.height = `${targetH}px`;
+            cSideNew.style.width = `${targetW}px`;
+            cSideNew.style.height = `${targetH}px`;
+
+            pzSideOld = Panzoom(elemOld, { maxScale: 8, minScale: 0.5, canvas: true, animate: false });
+            pzSideNew = Panzoom(elemNew, { maxScale: 8, minScale: 0.5, canvas: true, animate: false });
+
+            vpOld.addEventListener('mouseenter', () => activeHoveredPane = 'Old');
+            vpNew.addEventListener('mouseenter', () => activeHoveredPane = 'New');
+
+            elemOld.addEventListener('panzoomchange', (e) => {
+                if (activeHoveredPane === 'Old') {
+                    pzSideNew.pan(e.detail.x, e.detail.y, { animate: false });
+                    pzSideNew.zoom(e.detail.scale, { animate: false });
+                }
+            });
+
+            elemNew.addEventListener('panzoomchange', (e) => {
+                if (activeHoveredPane === 'New') {
+                    pzSideOld.pan(e.detail.x, e.detail.y, { animate: false });
+                    pzSideOld.zoom(e.detail.scale, { animate: false });
+                }
+            });
+
+            function handleSmoothWheel(e, sourcePz, targetPz) {
+                e.preventDefault();
+                const delta = e.deltaY;
+                const currentScale = sourcePz.getScale();
+                const zoomFactor = delta < 0 ? 1.12 : 0.88;
+                const nextScale = Math.min(Math.max(currentScale * zoomFactor, 0.5), 8);
+
+                sourcePz.zoomToPoint(nextScale, { clientX: e.clientX, clientY: e.clientY }, { animate: false });
+                const panData = sourcePz.getPan();
+
+                targetPz.pan(panData.x, panData.y, { animate: false });
+                targetPz.zoom(nextScale, { animate: false });
+            }
+
+            vpOld.onwheel = (e) => handleSmoothWheel(e, pzSideOld, pzSideNew);
+            vpNew.onwheel = (e) => handleSmoothWheel(e, pzSideNew, pzSideOld);
+        }
+
+        // --- SWIPE HANDLE DRAG ---
+        if (swipeHandle) {
+            swipeHandle.addEventListener('pointerdown', (e) => {
+                if (activeComparisonMode !== 'swipe') return;
+                e.preventDefault();
+                e.stopPropagation();
+                swipeHandle.setPointerCapture(e.pointerId);
+
+                const onPointerMove = (moveEvt) => {
+                    const rect = overlayWrapper.getBoundingClientRect();
+                    if (rect.width === 0) return;
+                    let pct = ((moveEvt.clientX - rect.left) / rect.width) * 100;
+                    if (pct < 0) pct = 0;
+                    if (pct > 100) pct = 100;
+                    setSwipePosition(pct);
+                };
+
+                const onPointerUp = (upEvt) => {
+                    swipeHandle.releasePointerCapture(upEvt.pointerId);
+                    swipeHandle.removeEventListener('pointermove', onPointerMove);
+                    swipeHandle.removeEventListener('pointerup', onPointerUp);
+                };
+
+                swipeHandle.addEventListener('pointermove', onPointerMove);
+                swipeHandle.addEventListener('pointerup', onPointerUp);
+            });
+        }
+
+        function setSwipePosition(pct) {
+            swipeContainer.style.width = `${pct}%`;
+            swipeHandle.style.left = `${pct}%`;
+        }
+
+        // --- REDO DRAWINGS BUTTON HANDLER ---
+        const handleRedoDrawings = () => {
+            pointsOld = [];
+            pointsNew = [];
+            currentActiveTab = 'New';
+
+            document.getElementById('sidebarStageOverlay').classList.add('hidden');
+            document.getElementById('sidebarStageCalib').classList.remove('hidden');
+
+            document.getElementById('phaseOldMap').classList.add('hidden');
+            document.getElementById('phaseNewMap').classList.remove('hidden');
+            document.getElementById('instructionNewMap').classList.remove('hidden');
+
+            document.getElementById('overlayWrapper').classList.add('hidden');
+            document.getElementById('sideBySideContainer').classList.add('hidden');
+            document.getElementById('panzoomContainer').classList.remove('hidden');
+            document.getElementById('calibMapWrapper').classList.remove('hidden');
+
+            const selectVal = document.getElementById('selectNewMap').value;
+            const mapObj = selectVal ? mapsRegistry.find(m => m.id == selectVal.split('_page_')[0]) : null;
+            const newMapUrl = activeNewBlobUrl || (mapObj ? mapObj.file_url : null);
+
+            if (newMapUrl) {
+                renderPdfToCanvas(newMapUrl, activeNewPageNum);
+            }
+            drawQuadUI();
+        };
+
+        document.getElementById('redoDrawingsBtn')?.addEventListener('click', handleRedoDrawings);
+        document.getElementById('redoDrawingsBtnCalib')?.addEventListener('click', handleRedoDrawings);
+    </script>
+</body>
+</html>

@@ -672,72 +672,95 @@
                 line.setAttribute('stroke-width', (1.3).toString());
             });
         }
-// --- FIXED UPLOADER WITH AUTOMATIC 5-CHUNK SPLITS (NO MAX CAP) ---
-        pdfUpload.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const cleanName = file.name.replace(/\s+/g, '_');
-            const uniqueStoragePath = `public/${Date.now()}_${cleanName}`;
-            placeholderText.innerHTML = `<p class='text-[#b3a98f] font-semibold animate-pulse'>Uploading ${file.name} to cloud servers...</p>`;
+// --- FIXED UPLOADER WITH UNIQUE GROUP NAME GENERATION ---
+pdfUpload.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const cleanName = file.name.replace(/\s+/g, '_');
+    const uniqueStoragePath = `public/${Date.now()}_${cleanName}`;
+    placeholderText.innerHTML = `<p class='text-[#b3a98f] font-semibold animate-pulse'>Uploading ${file.name} to cloud servers...</p>`;
 
-            // 1. Upload to storage bucket
-            const { data: storageData, error: storageErr } = await supabaseClient.storage.from('assessor-maps').upload(uniqueStoragePath, file);
-            if (storageErr) return alert("Upload failed: " + storageErr.message);
+    // 1. Upload to Supabase Storage
+    const { data: storageData, error: storageErr } = await supabaseClient.storage.from('assessor-maps').upload(uniqueStoragePath, file);
+    if (storageErr) return alert("Upload failed: " + storageErr.message);
 
-            const { data: urlData } = supabaseClient.storage.from('assessor-maps').getPublicUrl(storageData.path);
-            
-            // 2. Query groups and maps concurrently
-            const [groupsRes, mapsRes] = await Promise.all([
-                supabaseClient.from('map_groups').select('*').order('id', { ascending: true }),
-                supabaseClient.from('maps_registry').select('*')
-            ]);
+    const { data: urlData } = supabaseClient.storage.from('assessor-maps').getPublicUrl(storageData.path);
+    
+    // 2. Fetch existing groups and registry maps
+    const [groupsRes, mapsRes] = await Promise.all([
+        supabaseClient.from('map_groups').select('*').order('id', { ascending: true }),
+        supabaseClient.from('maps_registry').select('*')
+    ]);
 
-            const currentGroups = groupsRes.data || [];
-            const currentMaps = mapsRes.data || [];
-            let targetGroupId = null;
-            let calculatedSortOrder = 0;
+    const currentGroups = groupsRes.data || [];
+    const currentMaps = mapsRes.data || [];
+    let targetGroupId = null;
+    let calculatedSortOrder = 0;
 
-            // 3. Get the absolute newest/latest group created
-            const latestGroup = currentGroups[currentGroups.length - 1];
-            
-            // Count how many maps are currently in that specific latest group
-            const latestGroupCount = latestGroup ? currentMaps.filter(m => m.group_id === latestGroup.id).length : 0;
+    // Get the absolute newest group created by highest ID
+    const latestGroup = currentGroups.length > 0 ? currentGroups[currentGroups.length - 1] : null;
+    const latestGroupCount = latestGroup ? currentMaps.filter(m => m.group_id === latestGroup.id).length : 0;
 
-            if (latestGroup && latestGroupCount < 5) {
-                // If the newest group has fewer than 5 maps, use it
-                targetGroupId = latestGroup.id;
-                calculatedSortOrder = latestGroupCount;
-            } else {
-                // If there are no groups, or the latest group is already full (>= 5), make a brand new one
-                const nextGroupNum = currentGroups.length + 1;
-                const { data: newGroup, error: gErr } = await supabaseClient
-                    .from('map_groups')
-                    .insert([{ group_name: `Group ${nextGroupNum}` }])
-                    .select();
-                
-                if (!gErr && newGroup && newGroup.length > 0) {
-                    targetGroupId = newGroup[0].id;
-                    calculatedSortOrder = 0;
-                }
-            }
-
-            // 4. Register map with its correct sort_order sequence pre-assigned
-            const { data: insertedData, error: insertErr } = await supabaseClient.from('maps_registry').insert([{ 
-                map_name: file.name, 
-                file_url: urlData.publicUrl,
-                group_id: targetGroupId,
-                sort_order: calculatedSortOrder
-            }]).select();
-            
-            pdfUpload.value = ''; 
-            
-            if (insertErr) return console.error(insertErr.message);
-
-            if (insertedData && insertedData.length > 0) {
-                await fetchMapsDirectory();
-                loadActiveMap(insertedData[0]);
+    if (latestGroup && latestGroupCount < 5) {
+        // Assign to existing open group
+        targetGroupId = latestGroup.id;
+        calculatedSortOrder = latestGroupCount;
+    } else {
+        // Extract all numeric digits from existing group names to find the absolute highest number used
+        let maxGroupNum = 0;
+        currentGroups.forEach(g => {
+            const match = g.group_name.match(/\d+/);
+            if (match) {
+                const num = parseInt(match[0], 10);
+                if (num > maxGroupNum) maxGroupNum = num;
             }
         });
+
+        // Always increment higher than any group number ever created
+        const nextGroupNum = maxGroupNum > 0 ? maxGroupNum + 1 : currentGroups.length + 1;
+        const uniqueGroupName = `Group ${nextGroupNum}`;
+
+        const { data: newGroup, error: gErr } = await supabaseClient
+            .from('map_groups')
+            .insert([{ 
+                group_name: uniqueGroupName,
+                sort_order: currentGroups.length 
+            }])
+            .select();
+        
+        if (gErr || !newGroup || newGroup.length === 0) {
+            console.error("Group Creation Failed:", gErr ? gErr.message : "No data returned");
+            alert("Could not create new group folder: " + (gErr ? gErr.message : "Database write error"));
+            pdfUpload.value = '';
+            placeholderText.innerHTML = `<p class='text-red-500 font-semibold'>Group creation failed.</p>`;
+            return;
+        }
+
+        targetGroupId = newGroup[0].id;
+        calculatedSortOrder = 0;
+    }
+
+    // 3. Register map record with verified targetGroupId
+    const { data: insertedData, error: insertErr } = await supabaseClient.from('maps_registry').insert([{ 
+        map_name: file.name, 
+        file_url: urlData.publicUrl,
+        group_id: targetGroupId,
+        sort_order: calculatedSortOrder
+    }]).select();
+    
+    pdfUpload.value = ''; 
+    
+    if (insertErr) {
+        console.error("Map Registry Failed:", insertErr.message);
+        alert("Map registration failed: " + insertErr.message);
+        return;
+    }
+
+    if (insertedData && insertedData.length > 0) {
+        await fetchMapsDirectory();
+        loadActiveMap(insertedData[0]);
+    }
+});
 // --- STATE CONTROL GUARD FOR DRAG REORDERS ---
 let isSortingUpdateInProgress = false;
 

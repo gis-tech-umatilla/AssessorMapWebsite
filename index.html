@@ -17,28 +17,37 @@
             height: 14px !important;
             font-size: 8px !important;
         }
+
         .map-text-annotation {
             transform: translate(0%, -50%);
             transform-origin: left center;
             font-size: 6px !important;
             height: 14px !important;
         }
+
         .map-text-annotation span {
             font-size: 8px !important;
         }
-/* Force butter-smooth panning and zoom adjustments across layout refreshes */
+
+        /* Force butter-smooth panning and zoom adjustments across layout refreshes */
         #panzoomContainer {
             transition: transform 0.15s cubic-bezier(0.25, 1, 0.5, 1) !important;
             will-change: transform;
         }
+
         @media print {
             @page {
                 size: letter landscape;
                 margin: 0.4in 0.3in 0.4in 0.3in;
             }
 
-            /* Strip the active web application layout environment completely */
-            #authGate, header, aside:first-of-type, #drawingToolbar, #zoomControls, aside:last-of-type, #floatingPopover {
+            #authGate, 
+            header, 
+            aside:first-of-type, 
+            #drawingToolbar, 
+            #zoomControls, 
+            aside:last-of-type, 
+            #floatingPopover {
                 display: none !important;
             }
 
@@ -52,12 +61,10 @@
                 print-color-adjust: exact !important;
             }
 
-            /* Completely hide the application interface view layers during printing */
             .flex-1.flex, #mapViewport {
                 display: none !important;
             }
 
-            /* Pure Print Output Layout Block */
             #isolatedPrintContainer {
                 display: block !important;
                 width: 100% !important;
@@ -66,7 +73,6 @@
                 position: relative !important;
             }
 
-            /* Static structural container for the map image frame on Page 1 */
             .print-map-capture-wrapper {
                 display: block !important;
                 float: left !important;
@@ -84,7 +90,6 @@
                 border: 1px solid #94a3b8 !important;
             }
 
-            /* Title heading properties */
             .print-section-title {
                 font-size: 14px !important;
                 font-weight: bold !important;
@@ -97,7 +102,6 @@
                 break-after: avoid !important;
             }
 
-            /* Multi-Column container flow layout */
             .print-columns-layout {
                 display: block !important;
                 width: 100% !important;
@@ -106,7 +110,6 @@
                 column-fill: auto !important;
             }
 
-            /* Print Item Box Layout Rules */
             .print-issue-row {
                 background: #ffffff !important;
                 border: 1px solid #475569 !important;
@@ -119,7 +122,6 @@
                 break-inside: avoid !important;
             }
 
-            /* Print Metadata Formatting Fields */
             .print-meta-label {
                 font-size: 11px !important;
                 font-weight: bold !important;
@@ -129,7 +131,6 @@
                 margin-bottom: 4px !important;
             }
 
-            /* Clean plain text descriptions */
             .print-description-text {
                 font-size: 10px !important;
                 font-weight: normal !important;
@@ -139,7 +140,7 @@
                 white-space: pre-wrap !important;
             }
         }
-        /* Screen Display Rules for Print Output Targets */
+
         #isolatedPrintContainer {
             display: none;
         }
@@ -153,13 +154,13 @@
             <p class="text-sm text-slate-500 mt-1 mb-6">Map QA Tool Verification Portal</p>
             <div id="authContent">
                 <button id="googleSignInBtn" class="w-full flex items-center justify-center space-x-3 bg-white hover:bg-gray-50 text-gray-700 font-semibold py-3 px-4 border border-gray-300 rounded-xl shadow-sm cursor-pointer transition-all duration-150">
-                <svg class="w-5 h-5" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 6.51l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                </svg>
-                <span>Sign in with Google</span>
+                    <svg class="w-5 h-5" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 6.51l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                    <span>Sign in with Google</span>
                 </button>
             </div>
             <div id="authErrorMsg" class="mt-4 text-xs font-semibold text-red-600 bg-red-50 p-2.5 rounded-lg border border-red-200 hidden"></div>
@@ -610,8 +611,7 @@
                 } else if (error) {
                     console.error("Failed to insert tool artifact:", error.message);
                 }
-            }
-            else if (activeTool === 'line' || activeTool === 'dash' || activeTool === 'arrow') {
+            } else if (activeTool === 'line' || activeTool === 'dash' || activeTool === 'arrow') {
                 if (!firstPointClicked) {
                     firstPointClicked = { x: xPercent, y: yPercent };
                     toolHint.innerText = "Start Set! Click Where shape Should End.";
@@ -619,7 +619,8 @@
                     const tempIndicator = document.createElement('div');
                     tempIndicator.id = "temp-start-indicator";
                     tempIndicator.className = "absolute bg-amber-500 w-3 h-3 rounded-full border border-white animate-ping";
-                    tempIndicator.style.left = `${xPercent}%`; tempIndicator.style.top = `${yPercent}%`;
+                    tempIndicator.style.left = `${xPercent}%`; 
+                    tempIndicator.style.top = `${yPercent}%`;
                     dotsContainer.appendChild(tempIndicator);
                 } else {
                     const endPoint = { x: xPercent, y: yPercent };
@@ -658,12 +659,22 @@
         });
         
         async function saveInlineDescription(pinId, value) {
-            await supabaseClient.from('map_errors').update({ description: value.trim() }).eq('id', pinId);
+            const targetVal = value.trim();
+            // Update local memory first so Realtime fetch doesn't revert to old state
+            const localErr = activeErrors.find(e => e.id === pinId);
+            if (localErr) localErr.description = targetVal;
+
+            await supabaseClient.from('map_errors').update({ description: targetVal }).eq('id', pinId);
+            fetchPins();
         }
 
         async function saveInlineLayer(pinId, selectedLayer) {
             const targetValue = selectedLayer === "" ? null : selectedLayer;
+            const localErr = activeErrors.find(e => e.id === pinId);
+            if (localErr) localErr.gis_layer = targetValue;
+
             await supabaseClient.from('map_errors').update({ gis_layer: targetValue }).eq('id', pinId);
+            fetchPins();
         }
 
         function adjustPinScaling() {
@@ -672,598 +683,593 @@
                 line.setAttribute('stroke-width', (1.3).toString());
             });
         }
-// --- FIXED UPLOADER WITH UNIQUE GROUP NAME GENERATION ---
-pdfUpload.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const cleanName = file.name.replace(/\s+/g, '_');
-    const uniqueStoragePath = `public/${Date.now()}_${cleanName}`;
-    placeholderText.innerHTML = `<p class='text-[#b3a98f] font-semibold animate-pulse'>Uploading ${file.name} to cloud servers...</p>`;
 
-    // 1. Upload to Supabase Storage
-    const { data: storageData, error: storageErr } = await supabaseClient.storage.from('assessor-maps').upload(uniqueStoragePath, file);
-    if (storageErr) return alert("Upload failed: " + storageErr.message);
+        pdfUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const cleanName = file.name.replace(/\s+/g, '_');
+            const uniqueStoragePath = `public/${Date.now()}_${cleanName}`;
+            placeholderText.innerHTML = `<p class='text-[#b3a98f] font-semibold animate-pulse'>Uploading ${file.name} to cloud servers...</p>`;
 
-    const { data: urlData } = supabaseClient.storage.from('assessor-maps').getPublicUrl(storageData.path);
-    
-    // 2. Fetch existing groups and registry maps
-    const [groupsRes, mapsRes] = await Promise.all([
-        supabaseClient.from('map_groups').select('*').order('id', { ascending: true }),
-        supabaseClient.from('maps_registry').select('*')
-    ]);
+            const { data: storageData, error: storageErr } = await supabaseClient.storage.from('assessor-maps').upload(uniqueStoragePath, file);
+            if (storageErr) return alert("Upload failed: " + storageErr.message);
 
-    const currentGroups = groupsRes.data || [];
-    const currentMaps = mapsRes.data || [];
-    let targetGroupId = null;
-    let calculatedSortOrder = 0;
+            const { data: urlData } = supabaseClient.storage.from('assessor-maps').getPublicUrl(storageData.path);
+            
+            const [groupsRes, mapsRes] = await Promise.all([
+                supabaseClient.from('map_groups').select('*').order('id', { ascending: true }),
+                supabaseClient.from('maps_registry').select('*')
+            ]);
 
-    // Get the absolute newest group created by highest ID
-    const latestGroup = currentGroups.length > 0 ? currentGroups[currentGroups.length - 1] : null;
-    const latestGroupCount = latestGroup ? currentMaps.filter(m => m.group_id === latestGroup.id).length : 0;
+            const currentGroups = groupsRes.data || [];
+            const currentMaps = mapsRes.data || [];
+            let targetGroupId = null;
+            let calculatedSortOrder = 0;
 
-    if (latestGroup && latestGroupCount < 5) {
-        // Assign to existing open group
-        targetGroupId = latestGroup.id;
-        calculatedSortOrder = latestGroupCount;
-    } else {
-        // Extract all numeric digits from existing group names to find the absolute highest number used
-        let maxGroupNum = 0;
-        currentGroups.forEach(g => {
-            const match = g.group_name.match(/\d+/);
-            if (match) {
-                const num = parseInt(match[0], 10);
-                if (num > maxGroupNum) maxGroupNum = num;
+            const latestGroup = currentGroups.length > 0 ? currentGroups[currentGroups.length - 1] : null;
+            const latestGroupCount = latestGroup ? currentMaps.filter(m => m.group_id === latestGroup.id).length : 0;
+
+            if (latestGroup && latestGroupCount < 5) {
+                targetGroupId = latestGroup.id;
+                calculatedSortOrder = latestGroupCount;
+            } else {
+                let maxGroupNum = 0;
+                currentGroups.forEach(g => {
+                    const match = g.group_name.match(/\d+/);
+                    if (match) {
+                        const num = parseInt(match[0], 10);
+                        if (num > maxGroupNum) maxGroupNum = num;
+                    }
+                });
+
+                const nextGroupNum = maxGroupNum > 0 ? maxGroupNum + 1 : currentGroups.length + 1;
+                const uniqueGroupName = `Group ${nextGroupNum}`;
+
+                const { data: newGroup, error: gErr } = await supabaseClient
+                    .from('map_groups')
+                    .insert([{ 
+                        group_name: uniqueGroupName,
+                        sort_order: currentGroups.length 
+                    }])
+                    .select();
+                
+                if (gErr || !newGroup || newGroup.length === 0) {
+                    console.error("Group Creation Failed:", gErr ? gErr.message : "No data returned");
+                    alert("Could not create new group folder: " + (gErr ? gErr.message : "Database write error"));
+                    pdfUpload.value = '';
+                    placeholderText.innerHTML = `<p class='text-red-500 font-semibold'>Group creation failed.</p>`;
+                    return;
+                }
+
+                targetGroupId = newGroup[0].id;
+                calculatedSortOrder = 0;
+            }
+
+            const { data: insertedData, error: insertErr } = await supabaseClient.from('maps_registry').insert([{ 
+                map_name: file.name, 
+                file_url: urlData.publicUrl,
+                group_id: targetGroupId,
+                sort_order: calculatedSortOrder
+            }]).select();
+            
+            pdfUpload.value = ''; 
+            
+            if (insertErr) {
+                console.error("Map Registry Failed:", insertErr.message);
+                alert("Map registration failed: " + insertErr.message);
+                return;
+            }
+
+            if (insertedData && insertedData.length > 0) {
+                await fetchMapsDirectory();
+                loadActiveMap(insertedData[0]);
             }
         });
 
-        // Always increment higher than any group number ever created
-        const nextGroupNum = maxGroupNum > 0 ? maxGroupNum + 1 : currentGroups.length + 1;
-        const uniqueGroupName = `Group ${nextGroupNum}`;
+        let isSortingUpdateInProgress = false;
 
-        const { data: newGroup, error: gErr } = await supabaseClient
-            .from('map_groups')
-            .insert([{ 
-                group_name: uniqueGroupName,
-                sort_order: currentGroups.length 
-            }])
-            .select();
-        
-        if (gErr || !newGroup || newGroup.length === 0) {
-            console.error("Group Creation Failed:", gErr ? gErr.message : "No data returned");
-            alert("Could not create new group folder: " + (gErr ? gErr.message : "Database write error"));
-            pdfUpload.value = '';
-            placeholderText.innerHTML = `<p class='text-red-500 font-semibold'>Group creation failed.</p>`;
-            return;
+        function getUserColorStyle(prefix) {
+            if (!prefix) return { bg: 'bg-slate-400', border: 'border-slate-500', text: 'text-white' };
+            
+            if (prefix === 'mckenzie.bowey') {
+                return { bg: 'bg-[#e83a3a]', border: 'border-[#d12e2e]', text: 'text-white' };
+            }
+            if (prefix === 'ian.freel') {
+                return { bg: 'bg-[#249fb3]', border: 'border-[#1b8294]', text: 'text-white' };
+            }
+            if (prefix === 'aspen.buckingham') {
+                return { bg: 'bg-[#86ad32]', border: 'border-[#86ad32]', text: 'text-white' };
+            }
+            
+            let hash = 0;
+            for (let i = 0; i < prefix.length; i++) {
+                hash = prefix.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            
+            const tailwindPalettes = [
+                { bg: 'bg-indigo-600', border: 'border-indigo-700', text: 'text-white' },
+                { bg: 'bg-amber-600', border: 'border-amber-700', text: 'text-white' },
+                { bg: 'bg-purple-600', border: 'border-purple-700', text: 'text-white' },
+                { bg: 'bg-cyan-600', border: 'border-cyan-700', text: 'text-white' },
+                { bg: 'bg-fuchsia-600', border: 'border-fuchsia-700', text: 'text-white' }
+            ];
+            
+            return tailwindPalettes[Math.abs(hash) % tailwindPalettes.length];
         }
 
-        targetGroupId = newGroup[0].id;
-        calculatedSortOrder = 0;
-    }
+        async function fetchMapsDirectory() {
+            if (isSortingUpdateInProgress) return;
 
-    // 3. Register map record with verified targetGroupId
-    const { data: insertedData, error: insertErr } = await supabaseClient.from('maps_registry').insert([{ 
-        map_name: file.name, 
-        file_url: urlData.publicUrl,
-        group_id: targetGroupId,
-        sort_order: calculatedSortOrder
-    }]).select();
-    
-    pdfUpload.value = ''; 
-    
-    if (insertErr) {
-        console.error("Map Registry Failed:", insertErr.message);
-        alert("Map registration failed: " + insertErr.message);
-        return;
-    }
-
-    if (insertedData && insertedData.length > 0) {
-        await fetchMapsDirectory();
-        loadActiveMap(insertedData[0]);
-    }
-});
-// --- STATE CONTROL GUARD FOR DRAG REORDERS ---
-let isSortingUpdateInProgress = false;
-
-// Global Helper to convert username initials to a stable visual color style
-function getUserColorStyle(prefix) {
-    if (!prefix) return { bg: 'bg-slate-400', border: 'border-slate-500', text: 'text-white' };
-    
-    // Hardcoded custom hex color schemes using Tailwind arbitrary values
-    if (prefix === 'mckenzie.bowey') {
-        return { bg: 'bg-[#e83a3a]', border: 'border-[#d12e2e]', text: 'text-white' };
-    }
-    if (prefix === 'ian.freel') {
-        return { bg: 'bg-[#249fb3]', border: 'border-[#1b8294]', text: 'text-white' };
-    }
-    
-    // Simple hash rotation fallback for other staff accounts
-    let hash = 0;
-    for (let i = 0; i < prefix.length; i++) {
-        hash = prefix.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    
-    const tailwindPalettes = [
-        { bg: 'bg-indigo-600', border: 'border-indigo-700', text: 'text-white' },
-        { bg: 'bg-emerald-600', border: 'border-emerald-700', text: 'text-white' },
-        { bg: 'bg-amber-600', border: 'border-amber-700', text: 'text-white' },
-        { bg: 'bg-purple-600', border: 'border-purple-700', text: 'text-white' },
-        { bg: 'bg-rose-600', border: 'border-rose-700', text: 'text-white' },
-        { bg: 'bg-cyan-600', border: 'border-cyan-700', text: 'text-white' },
-        { bg: 'bg-fuchsia-600', border: 'border-fuchsia-700', text: 'text-white' }
-    ];
-    
-    return tailwindPalettes[Math.abs(hash) % tailwindPalettes.length];
-}
-
-// --- VISUALLY STATIC PERMANENTLY EXPANDED MAP DIRECTORY ENGINE ---
-async function fetchMapsDirectory() {
-    // If a drag-and-drop loop is processing network requests, block UI redraws
-    if (isSortingUpdateInProgress) return;
-
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session) return;
-    
-    const currentUserEmail = session.user.email.toLowerCase();
-    const currentUserPrefix = getEmailPrefix(currentUserEmail);
-
-    // Fetch groups ordered by their parent sort_order, and maps ordered by their sibling sort_order
-    const [groupsRes, mapsRes] = await Promise.all([
-        supabaseClient.from('map_groups').select('*').order('sort_order', { ascending: true }),
-        supabaseClient.from('maps_registry').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false })
-    ]);
-
-    if (mapsRes.error) return console.error(mapsRes.error);
-    if (groupsRes.error) return console.error(groupsRes.error);
-    
-    const rawGroups = groupsRes.data || [];
-    const rawMaps = mapsRes.data || [];
-
-    mapList.innerHTML = '';
-    if (rawMaps.length === 0) {
-        mapList.innerHTML = '<p class="text-xs text-slate-300/60 italic p-2">No maps uploaded yet.</p>';
-        return;
-    }
-
-    const mapsByGroupMap = {};
-    rawMaps.forEach(map => {
-        const gId = map.group_id || 'unassigned';
-        if (!mapsByGroupMap[gId]) mapsByGroupMap[gId] = [];
-        mapsByGroupMap[gId].push(map);
-    });
-
-    rawGroups.forEach(group => {
-        const groupMaps = mapsByGroupMap[group.id] || [];
-        if (groupMaps.length === 0) return; 
-
-        const groupContainer = document.createElement('div');
-        groupContainer.className = "sortable-folder-item flex flex-col bg-black/10 rounded-lg overflow-hidden border border-black/5 mb-2 text-slate-200";
-        groupContainer.setAttribute('data-group-id', group.id);
-        
-        // Static Wrapper Header Panel
-        const groupHeader = document.createElement('div');
-        groupHeader.className = "w-full flex justify-between items-center bg-black/20 p-2.5 text-xs font-bold text-slate-300 border-b border-b-black/5 select-none";
-        
-        // Folder Drag Handle Container Zone
-        const folderGrip = document.createElement('span');
-        folderGrip.className = "sortable-folder-handle cursor-grab text-slate-400 hover:text-slate-200 text-xs font-bold tracking-tighter select-none shrink-0 pr-2";
-        folderGrip.innerHTML = "☰";
-        groupHeader.appendChild(folderGrip);
-
-        const titleTextSpan = document.createElement('span');
-        titleTextSpan.className = "flex-1 tracking-wide py-0.5 truncate mr-2 cursor-pointer";
-        titleTextSpan.innerText = `📂 ${group.group_name}`;
-        groupHeader.appendChild(titleTextSpan);
-
-        // CASCADE DELETE FOLDER BUTTON WITH TWO-STAGE POPUP
-        const delGroupBtn = document.createElement('button');
-        delGroupBtn.className = "text-[10px] bg-red-950/40 hover:bg-red-700/80 text-red-400 hover:text-white px-1.5 py-0.5 rounded font-bold transition shrink-0 cursor-pointer select-none";
-        delGroupBtn.innerText = "Delete";
-        delGroupBtn.onclick = async (e) => {
-            e.stopPropagation();
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) return;
             
-            const confirmFirst = confirm(`Are you sure you want to delete the folder "${group.group_name}"?`);
-            if (!confirmFirst) return;
+            const currentUserEmail = session.user.email.toLowerCase();
+            const currentUserPrefix = getEmailPrefix(currentUserEmail);
 
-            const mapCountText = groupMaps.length > 0 ? ` and ALL ${groupMaps.length} map sheet(s) inside it` : '';
-            const confirmSecond = confirm(`CRITICAL WARNING: This will permanently delete "${group.group_name}"${mapCountText}, along with any associated logged issues. This action CANNOT be undone. Proceed?`);
+            const [groupsRes, mapsRes] = await Promise.all([
+                supabaseClient.from('map_groups').select('*').order('sort_order', { ascending: true }),
+                supabaseClient.from('maps_registry').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false })
+            ]);
+
+            if (mapsRes.error) return console.error(mapsRes.error);
+            if (groupsRes.error) return console.error(groupsRes.error);
             
-            if (confirmSecond) {
-                const storagePaths = groupMaps
-                    .map(m => m.file_url.split('/assessor-maps/'))
-                    .filter(parts => parts.length > 1)
-                    .map(parts => parts[1]);
+            const rawGroups = groupsRes.data || [];
+            const rawMaps = mapsRes.data || [];
 
-                if (storagePaths.length > 0) {
-                    await supabaseClient.storage.from('assessor-maps').remove(storagePaths);
-                }
-
-                if (groupMaps.length > 0) {
-                    await supabaseClient.from('maps_registry').delete().eq('group_id', group.id);
-                }
-                
-                await supabaseClient.from('map_groups').delete().eq('id', group.id);
-
-                const wasActiveMapDeleted = groupMaps.some(m => m.id === currentMapId);
-                if (wasActiveMapDeleted) {
-                    location.reload();
-                } else {
-                    await fetchMapsDirectory();
-                }
-            }
-        };
-        groupHeader.appendChild(delGroupBtn);
-        
-        groupContainer.appendChild(groupHeader);
-
-        // DRAGGABLE MAP CONTAINER ELEMENT
-        const childrenContentWrapper = document.createElement('div');
-        childrenContentWrapper.className = "p-1 space-y-1 block min-h-[40px] sortable-map-list";
-        childrenContentWrapper.setAttribute('data-group-id', group.id);
-
-        // --- DOUBLE CLICK INLINE RENAME FLOW ---
-        titleTextSpan.addEventListener('dblclick', (e) => {
-            e.stopPropagation();
-            
-            const renameInput = document.createElement('input');
-            renameInput.type = 'text';
-            renameInput.value = group.group_name;
-            renameInput.className = "flex-1 bg-slate-800 border border-blue-500 rounded px-1.5 py-0.5 text-xs text-white font-bold tracking-wide outline-none focus:ring-1 focus:ring-blue-400 select-text";
-            
-            groupHeader.replaceChild(renameInput, titleTextSpan);
-            renameInput.focus();
-            renameInput.select();
-
-            let isSaved = false;
-            async function commitGroupNameChange() {
-                if (isSaved) return;
-                isSaved = true;
-                
-                const updatedValue = renameInput.value.trim();
-                if (updatedValue && updatedValue !== group.group_name) {
-                    titleTextSpan.innerText = `📂 ${updatedValue}`;
-                    group.group_name = updatedValue;
-                    await supabaseClient
-                        .from('map_groups')
-                        .update({ group_name: updatedValue })
-                        .eq('id', group.id);
-                } else {
-                    titleTextSpan.innerText = `📂 ${group.group_name}`;
-                }
-                
-                if (groupHeader.contains(renameInput)) {
-                    groupHeader.replaceChild(titleTextSpan, renameInput);
-                }
+            mapList.innerHTML = '';
+            if (rawMaps.length === 0) {
+                mapList.innerHTML = '<p class="text-xs text-slate-300/60 italic p-2">No maps uploaded yet.</p>';
+                return;
             }
 
-            renameInput.addEventListener('keydown', (inputEvt) => {
-                if (inputEvt.key === 'Enter') commitGroupNameChange();
-                if (inputEvt.key === 'Escape') {
-                    renameInput.value = group.group_name;
-                    commitGroupNameChange();
-                }
-            });
-            renameInput.addEventListener('blur', commitGroupNameChange);
-        });
-
-groupMaps.forEach((map) => {
-            const mapRow = document.createElement('div');
-            mapRow.className = `group flex items-center p-2 rounded-md transition space-x-2 ${currentMapId === map.id ? 'bg-[#1985a1] text-white shadow-md' : 'text-slate-200 hover:bg-black/10'}`;
-            mapRow.setAttribute('data-map-id', map.id);
-
-            // 1. Map List Row Sort Grip Handle
-            const gripHandle = document.createElement('span');
-            gripHandle.className = "sortable-handle cursor-grab text-slate-500 hover:text-slate-300 text-xs font-bold tracking-tighter select-none shrink-0 pr-1";
-            gripHandle.innerHTML = "⋮⋮";
-            mapRow.appendChild(gripHandle);
-
-            // This entire internal row layout acts as the map selector frame click area
-            const rowContentLayout = document.createElement('div');
-            rowContentLayout.className = "flex-1 flex justify-between items-center min-w-0 cursor-pointer select-none";
-            rowContentLayout.onclick = () => loadActiveMap(map);
-
-            // 2. Document Name Label
-            const cleanMapName = map.map_name.replace(/\.pdf$/i, '');
-            const nameLabelSpan = document.createElement('span');
-            nameLabelSpan.className = 'text-left text-xs font-medium truncate block min-w-0 pl-1 pr-2 pointer-events-none';
-            nameLabelSpan.innerText = `📄 ${cleanMapName}`;
-            rowContentLayout.appendChild(nameLabelSpan);
-
-            // Container for right-aligned control utilities
-            const controlGroupContainer = document.createElement('div');
-            controlGroupContainer.className = "flex items-center space-x-1.5 shrink-0";
-
-            // 3. MULTI-REVIEWER COMPONENT RENDERING ENGINE
-            const reviewersArr = map.reviewed_by || [];
-            const hasReviewed = reviewersArr.includes(currentUserPrefix);
-
-            // Sort existing reviewers arrays by hardcoded rule: mckenzie first, ian second, others last
-            const sortedReviewers = [...reviewersArr].sort((a, b) => {
-                if (a === 'mckenzie.bowey') return -1;
-                if (b === 'mckenzie.bowey') return 1;
-                if (a === 'ian.freel') return -1;
-                if (b === 'ian.freel') return 1;
-                return a.localeCompare(b);
+            const mapsByGroupMap = {};
+            rawMaps.forEach(map => {
+                const gId = map.group_id || 'unassigned';
+                if (!mapsByGroupMap[gId]) mapsByGroupMap[gId] = [];
+                mapsByGroupMap[gId].push(map);
             });
 
-            // A: Render active circles for everyone who already reviewed it
-            sortedReviewers.forEach((prefix) => {
-                const badge = document.createElement('button');
-                badge.className = "w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-bold tracking-widest pl-[1px] shrink-0 cursor-pointer transition-all duration-150 relative";
+            rawGroups.forEach(group => {
+                const groupMaps = mapsByGroupMap[group.id] || [];
+                if (groupMaps.length === 0) return; 
+
+                const groupContainer = document.createElement('div');
+                groupContainer.className = "sortable-folder-item flex flex-col bg-black/10 rounded-lg overflow-hidden border border-black/5 mb-2 text-slate-200";
+                groupContainer.setAttribute('data-group-id', group.id);
                 
-                const nameParts = prefix.split('.');
-                const initials = nameParts.length >= 2 
-                    ? (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase()
-                    : prefix.substring(0, 2).toUpperCase();
+                const groupHeader = document.createElement('div');
+                groupHeader.className = "w-full flex justify-between items-center bg-black/20 p-2.5 text-xs font-bold text-slate-300 border-b border-b-black/5 select-none";
+                
+                const folderGrip = document.createElement('span');
+                folderGrip.className = "sortable-folder-handle cursor-grab text-slate-400 hover:text-slate-200 text-xs font-bold tracking-tighter select-none shrink-0 pr-2";
+                folderGrip.innerHTML = "☰";
+                groupHeader.appendChild(folderGrip);
 
-                const colors = getUserColorStyle(prefix);
-                badge.className += ` ${colors.bg} ${colors.border} ${colors.text}`;
-                badge.innerText = initials;
-                badge.title = `Reviewed by ${prefix}. Click to remove your review option.`;
+                const titleTextSpan = document.createElement('span');
+                titleTextSpan.className = "flex-1 tracking-wide py-0.5 truncate mr-2 cursor-pointer";
+                titleTextSpan.innerText = `📂 ${group.group_name}`;
+                groupHeader.appendChild(titleTextSpan);
 
-                badge.onclick = async (e) => {
+                const delGroupBtn = document.createElement('button');
+                delGroupBtn.className = "text-[10px] bg-red-950/40 hover:bg-red-700/80 text-red-400 hover:text-white px-1.5 py-0.5 rounded font-bold transition shrink-0 cursor-pointer select-none";
+                delGroupBtn.innerText = "Delete";
+                delGroupBtn.onclick = async (e) => {
                     e.stopPropagation();
-                    // Only allow the user clicking to remove THEIR OWN review mark safely
-                    let updatedReviewers = reviewersArr.filter(p => p !== prefix);
                     
-                    // If clicking someone else's badge, act as a toggle for the current user instead
-                    if (prefix !== currentUserPrefix) {
-                        if (hasReviewed) {
-                            updatedReviewers = reviewersArr.filter(p => p !== currentUserPrefix);
+                    const confirmFirst = confirm(`Are you sure you want to delete the folder "${group.group_name}"?`);
+                    if (!confirmFirst) return;
+
+                    const mapCountText = groupMaps.length > 0 ? ` and ALL ${groupMaps.length} map sheet(s) inside it` : '';
+                    const confirmSecond = confirm(`CRITICAL WARNING: This will permanently delete "${group.group_name}"${mapCountText}, along with any associated logged issues. This action CANNOT be undone. Proceed?`);
+                    
+                    if (confirmSecond) {
+                        const storagePaths = groupMaps
+                            .map(m => m.file_url.split('/assessor-maps/'))
+                            .filter(parts => parts.length > 1)
+                            .map(parts => parts[1]);
+
+                        if (storagePaths.length > 0) {
+                            await supabaseClient.storage.from('assessor-maps').remove(storagePaths);
+                        }
+
+                        if (groupMaps.length > 0) {
+                            await supabaseClient.from('maps_registry').delete().eq('group_id', group.id);
+                        }
+                        
+                        await supabaseClient.from('map_groups').delete().eq('id', group.id);
+
+                        const wasActiveMapDeleted = groupMaps.some(m => m.id === currentMapId);
+                        if (wasActiveMapDeleted) {
+                            location.reload();
                         } else {
-                            updatedReviewers = [...reviewersArr, currentUserPrefix];
+                            await fetchMapsDirectory();
+                        }
+                    }
+                };
+                groupHeader.appendChild(delGroupBtn);
+                
+                groupContainer.appendChild(groupHeader);
+
+                const childrenContentWrapper = document.createElement('div');
+                childrenContentWrapper.className = "p-1 space-y-1 block min-h-[40px] sortable-map-list";
+                childrenContentWrapper.setAttribute('data-group-id', group.id);
+
+                titleTextSpan.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    
+                    const renameInput = document.createElement('input');
+                    renameInput.type = 'text';
+                    renameInput.value = group.group_name;
+                    renameInput.className = "flex-1 bg-slate-800 border border-blue-500 rounded px-1.5 py-0.5 text-xs text-white font-bold tracking-wide outline-none focus:ring-1 focus:ring-blue-400 select-text";
+                    
+                    groupHeader.replaceChild(renameInput, titleTextSpan);
+                    renameInput.focus();
+                    renameInput.select();
+
+                    let isSaved = false;
+                    async function commitGroupNameChange() {
+                        if (isSaved) return;
+                        isSaved = true;
+                        
+                        const updatedValue = renameInput.value.trim();
+                        if (updatedValue && updatedValue !== group.group_name) {
+                            titleTextSpan.innerText = `📂 ${updatedValue}`;
+                            group.group_name = updatedValue;
+                            await supabaseClient
+                                .from('map_groups')
+                                .update({ group_name: updatedValue })
+                                .eq('id', group.id);
+                        } else {
+                            titleTextSpan.innerText = `📂 ${group.group_name}`;
+                        }
+                        
+                        if (groupHeader.contains(renameInput)) {
+                            groupHeader.replaceChild(titleTextSpan, renameInput);
                         }
                     }
 
-                    const { error } = await supabaseClient
-                        .from('maps_registry')
-                        .update({ reviewed_by: updatedReviewers })
-                        .eq('id', map.id);
-                    
-                    if (!error) await fetchMapsDirectory();
-                };
-                controlGroupContainer.appendChild(badge);
-            });
-
-            // B: If the current user has NOT marked it yet, show a dashed option button for them
-            if (!hasReviewed) {
-                const actionBtn = document.createElement('button');
-                actionBtn.className = "w-6 h-6 rounded-full border border-dashed border-slate-400 bg-transparent text-transparent hover:border-slate-200 hover:bg-white/10 flex items-center justify-center shrink-0 cursor-pointer transition-all duration-150";
-                actionBtn.innerHTML = "&nbsp;";
-                actionBtn.title = "Mark as Reviewed";
-
-                actionBtn.onclick = async (e) => {
-                    e.stopPropagation();
-                    const updatedReviewers = [...reviewersArr, currentUserPrefix];
-
-                    const { error } = await supabaseClient
-                        .from('maps_registry')
-                        .update({ reviewed_by: updatedReviewers })
-                        .eq('id', map.id);
-                    
-                    if (!error) await fetchMapsDirectory();
-                };
-                controlGroupContainer.appendChild(actionBtn);
-            }
-
-            // 4. Standalone Leaf Record Removal Processing Area
-            const delBtn = document.createElement('button');
-            delBtn.className = `opacity-0 group-hover:opacity-100 px-1.5 py-0.5 bg-red-900/30 hover:bg-red-700/80 rounded text-red-400 hover:text-white transition text-[10px] cursor-pointer font-bold shrink-0 ml-1`;
-            delBtn.innerHTML = 'Delete';
-            delBtn.onclick = async (e) => {
-                e.stopPropagation();
-                const confirmDeletion = confirm(`Are you sure you want to delete "${cleanMapName}"? This will permanently remove the map and all associated logged issues.`);
-                if (confirmDeletion) {
-                    const urlParts = map.file_url.split('/assessor-maps/');
-                    if (urlParts.length > 1) await supabaseClient.storage.from('assessor-maps').remove([urlParts[1]]);
-                    await supabaseClient.from('maps_registry').delete().eq('id', map.id);
-                    if (currentMapId === map.id) location.reload();
-                }
-            };
-            controlGroupContainer.appendChild(delBtn);
-            
-            rowContentLayout.appendChild(controlGroupContainer);
-            mapRow.appendChild(rowContentLayout);
-
-            childrenContentWrapper.appendChild(mapRow);
-        });
-
-        groupContainer.appendChild(childrenContentWrapper);
-        mapList.appendChild(groupContainer);
-    });
-    
-    // Bind both layouts components with the SortableJS engine
-    initSortableDragAndDrop();
-}
-
-// --- DRAG-DROP COMPONENT REINDEX HANDLER ---
-function initSortableDragAndDrop() {
-    // 1. Initialize Parent Folder Sorting Control
-    Sortable.create(mapList, {
-        animation: 180,
-        handle: '.sortable-folder-handle',
-        ghostClass: 'bg-[#b3a98f]/20',
-        onEnd: async function () {
-            try {
-                isSortingUpdateInProgress = true;
-                const folderRows = mapList.querySelectorAll('.sortable-folder-item');
-                const folderUpdates = [];
-
-                folderRows.forEach((folder, newIdx) => {
-                    const groupId = Number(folder.getAttribute('data-group-id'));
-                    folderUpdates.push(
-                        supabaseClient
-                            .from('map_groups')
-                            .update({ sort_order: newIdx })
-                            .eq('id', groupId)
-                    );
+                    renameInput.addEventListener('keydown', (inputEvt) => {
+                        if (inputEvt.key === 'Enter') commitGroupNameChange();
+                        if (inputEvt.key === 'Escape') {
+                            renameInput.value = group.group_name;
+                            commitGroupNameChange();
+                        }
+                    });
+                    renameInput.addEventListener('blur', commitGroupNameChange);
                 });
 
-                console.log(`[Batch Update] Reindexing ${folderUpdates.length} folders...`);
-                await Promise.all(folderUpdates);
-            } catch (err) {
-                console.error("Folder sorting synchronization dropped:", err);
-            } finally {
-                isSortingUpdateInProgress = false;
-                await fetchMapsDirectory();
-            }
-        }
-    });
+                groupMaps.forEach((map) => {
+                    const mapRow = document.createElement('div');
+                    mapRow.className = `group flex items-center p-2 rounded-md transition space-x-2 ${currentMapId === map.id ? 'bg-[#1985a1] text-white shadow-md' : 'text-slate-200 hover:bg-black/10'}`;
+                    mapRow.setAttribute('data-map-id', map.id);
 
-    // 2. Initialize Nested Child Maps Sorting Control
-    const lists = document.querySelectorAll('.sortable-map-list');
-    lists.forEach(listEl => {
-        Sortable.create(listEl, {
-            group: 'shared-maps-directory', 
-            animation: 180,
-            handle: '.sortable-handle',    
-            ghostClass: 'bg-[#1985a1]/20',
-            
-            onEnd: async function (evt) {
-                const toListEl = evt.to;
-                const fromListEl = evt.from;
-                
-                try {
-                    isSortingUpdateInProgress = true;
+                    const gripHandle = document.createElement('span');
+                    gripHandle.className = "sortable-handle cursor-grab text-slate-500 hover:text-slate-300 text-xs font-bold tracking-tighter select-none shrink-0 pr-1";
+                    gripHandle.innerHTML = "⋮⋮";
+                    mapRow.appendChild(gripHandle);
 
-                    const affectedLists = [toListEl];
-                    if (fromListEl !== toListEl) {
-                        affectedLists.push(fromListEl);
+                    const rowContentLayout = document.createElement('div');
+                    rowContentLayout.className = "flex-1 flex justify-between items-center min-w-0 cursor-pointer select-none";
+                    rowContentLayout.onclick = () => loadActiveMap(map);
+
+                    const cleanMapName = map.map_name.replace(/\.pdf$/i, '');
+                    const nameLabelSpan = document.createElement('span');
+                    nameLabelSpan.className = 'text-left text-xs font-medium truncate block min-w-0 pl-1 pr-2 pointer-events-none';
+                    nameLabelSpan.innerText = `📄 ${cleanMapName}`;
+                    rowContentLayout.appendChild(nameLabelSpan);
+
+                    const controlGroupContainer = document.createElement('div');
+                    controlGroupContainer.className = "flex items-center space-x-1.5 shrink-0";
+
+                    const reviewersArr = map.reviewed_by || [];
+                    const hasReviewed = reviewersArr.includes(currentUserPrefix);
+
+                    const sortedReviewers = [...reviewersArr].sort((a, b) => {
+                        if (a === 'mckenzie.bowey') return -1;
+                        if (b === 'mckenzie.bowey') return 1;
+                        if (a === 'ian.freel') return -1;
+                        if (b === 'ian.freel') return 1;
+                        return a.localeCompare(b);
+                    });
+
+                    sortedReviewers.forEach((prefix) => {
+                        const badge = document.createElement('button');
+                        badge.className = "w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-bold tracking-widest pl-[1px] shrink-0 cursor-pointer transition-all duration-150 relative saturate-85";
+                        
+                        const nameParts = prefix.split('.');
+                        const initials = nameParts.length >= 2 
+                            ? (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase()
+                            : prefix.substring(0, 2).toUpperCase();
+
+                        const colors = getUserColorStyle(prefix);
+                        badge.className += ` ${colors.bg} ${colors.border} ${colors.text}`;
+                        badge.innerText = initials;
+                        badge.title = `Reviewed by ${prefix}. Click to remove your review option.`;
+
+                        badge.onclick = async (e) => {
+                            e.stopPropagation();
+                            let updatedReviewers = reviewersArr.filter(p => p !== prefix);
+                            
+                            if (prefix !== currentUserPrefix) {
+                                if (hasReviewed) {
+                                    updatedReviewers = reviewersArr.filter(p => p !== currentUserPrefix);
+                                } else {
+                                    updatedReviewers = [...reviewersArr, currentUserPrefix];
+                                }
+                            }
+
+                            const { error } = await supabaseClient
+                                .from('maps_registry')
+                                .update({ reviewed_by: updatedReviewers })
+                                .eq('id', map.id);
+                            
+                            if (!error) await fetchMapsDirectory();
+                        };
+                        controlGroupContainer.appendChild(badge);
+                    });
+
+                    if (!hasReviewed) {
+                        const actionBtn = document.createElement('button');
+                        actionBtn.className = "w-6 h-6 rounded-full border border-dashed border-slate-400 bg-transparent text-transparent hover:border-slate-200 hover:bg-white/10 flex items-center justify-center shrink-0 cursor-pointer transition-all duration-150";
+                        actionBtn.innerHTML = "&nbsp;";
+                        actionBtn.title = "Mark as Reviewed";
+
+                        actionBtn.onclick = async (e) => {
+                            e.stopPropagation();
+                            const updatedReviewers = [...reviewersArr, currentUserPrefix];
+
+                            const { error } = await supabaseClient
+                                .from('maps_registry')
+                                .update({ reviewed_by: updatedReviewers })
+                                .eq('id', map.id);
+                            
+                            if (!error) await fetchMapsDirectory();
+                        };
+                        controlGroupContainer.appendChild(actionBtn);
                     }
 
-                    const updates = [];
+                    const delBtn = document.createElement('button');
+                    delBtn.className = `opacity-0 group-hover:opacity-100 px-1.5 py-0.5 bg-red-900/30 hover:bg-red-700/80 rounded text-red-400 hover:text-white transition text-[10px] cursor-pointer font-bold shrink-0 ml-1`;
+                    delBtn.innerHTML = 'Delete';
+                    delBtn.onclick = async (e) => {
+                        e.stopPropagation();
+                        const confirmDeletion = confirm(`Are you sure you want to delete "${cleanMapName}"? This will permanently remove the map and all associated logged issues.`);
+                        if (confirmDeletion) {
+                            const urlParts = map.file_url.split('/assessor-maps/');
+                            if (urlParts.length > 1) await supabaseClient.storage.from('assessor-maps').remove([urlParts[1]]);
+                            await supabaseClient.from('maps_registry').delete().eq('id', map.id);
+                            if (currentMapId === map.id) location.reload();
+                        }
+                    };
+                    controlGroupContainer.appendChild(delBtn);
+                    
+                    rowContentLayout.appendChild(controlGroupContainer);
+                    mapRow.appendChild(rowContentLayout);
 
-                    for (const currentList of affectedLists) {
-                        const listGroupIdRaw = currentList.getAttribute('data-group-id');
-                        let listGroupId = (listGroupIdRaw !== 'unassigned' && listGroupIdRaw !== null) ? Number(listGroupIdRaw) : null;
-                        
-                        const childRows = currentList.querySelectorAll('[data-map-id]');
-                        childRows.forEach((row, newIdx) => {
-                            const mapId = Number(row.getAttribute('data-map-id'));
-                            updates.push(
+                    childrenContentWrapper.appendChild(mapRow);
+                });
+
+                groupContainer.appendChild(childrenContentWrapper);
+                mapList.appendChild(groupContainer);
+            });
+            
+            initSortableDragAndDrop();
+        }
+
+        function initSortableDragAndDrop() {
+            Sortable.create(mapList, {
+                animation: 180,
+                handle: '.sortable-folder-handle',
+                ghostClass: 'bg-[#b3a98f]/20',
+                onEnd: async function () {
+                    try {
+                        isSortingUpdateInProgress = true;
+                        const folderRows = mapList.querySelectorAll('.sortable-folder-item');
+                        const folderUpdates = [];
+
+                        folderRows.forEach((folder, newIdx) => {
+                            const groupId = Number(folder.getAttribute('data-group-id'));
+                            folderUpdates.push(
                                 supabaseClient
-                                    .from('maps_registry')
-                                    .update({ 
-                                        group_id: listGroupId, 
-                                        sort_order: newIdx 
-                                    })
-                                    .eq('id', mapId)
+                                    .from('map_groups')
+                                    .update({ sort_order: newIdx })
+                                    .eq('id', groupId)
                             );
                         });
+
+                        console.log(`[Batch Update] Reindexing ${folderUpdates.length} folders...`);
+                        await Promise.all(folderUpdates);
+                    } catch (err) {
+                        console.error("Folder sorting synchronization dropped:", err);
+                    } finally {
+                        isSortingUpdateInProgress = false;
+                        await fetchMapsDirectory();
                     }
-
-                    console.log(`[Batch Update] Processing ${updates.length} map file position updates...`);
-                    await Promise.all(updates);
-                } catch (err) {
-                    console.error("Sortable map processing error:", err);
-                } finally {
-                    isSortingUpdateInProgress = false;
-                    await fetchMapsDirectory();
                 }
-            }
-        });
-    });
-}
-async function loadActiveMap(mapObj) {
-    currentMapId = mapObj.id;
-    fetchMapsDirectory(); 
-    placeholderText.innerHTML = "<p class='text-[#1985a1] font-semibold animate-pulse'>Loading Map Sheets...</p>";
-    mapWrapper.classList.add('hidden'); zoomControls.classList.add('hidden'); drawingToolbar.classList.add('hidden');
-    hideIssuePopover();
+            });
 
-    if (panzoomInstance) panzoomInstance.destroy();
+            const lists = document.querySelectorAll('.sortable-map-list');
+            lists.forEach(listEl => {
+                Sortable.create(listEl, {
+                    group: 'shared-maps-directory', 
+                    animation: 180,
+                    handle: '.sortable-handle',    
+                    ghostClass: 'bg-[#1985a1]/20',
+                    
+                    onEnd: async function (evt) {
+                        const toListEl = evt.to;
+                        const fromListEl = evt.from;
+                        
+                        try {
+                            isSortingUpdateInProgress = true;
 
-    try {
-        const pdf = await pdfjsLib.getDocument(mapObj.file_url).promise;
-        const hasSecondPage = pdf.numPages >= 2;
-        
-        // Render Sheet 1
-        const page1 = await pdf.getPage(1);
-        const viewport1 = page1.getViewport({ scale: 2.5 }); 
-        const context1 = pdfCanvas.getContext('2d');
-        pdfCanvas.height = viewport1.height; 
-        pdfCanvas.width = viewport1.width;
-        await page1.render({ canvasContext: context1, viewport: viewport1 }).promise;
+                            const affectedLists = [toListEl];
+                            if (fromListEl !== toListEl) {
+                                affectedLists.push(fromListEl);
+                            }
 
-        const canvas2El = document.getElementById('pdfCanvas2');
+                            const updates = [];
 
-        // Render Sheet 2 if it exists
-        if (hasSecondPage) {
-            canvas2El.classList.remove('hidden');
-            const page2 = await pdf.getPage(2);
-            const viewport2 = page2.getViewport({ scale: 2.5 });
-            const context2 = canvas2El.getContext('2d');
-            canvas2El.height = viewport2.height;
-            canvas2El.width = viewport2.width;
-            await page2.render({ canvasContext: context2, viewport: viewport2 }).promise;
-        } else {
-            canvas2El.classList.add('hidden');
-        }
-        
-        // CRITICAL: Unhide the containers BEFORE measuring dimensions, or offsetWidth/Height will return 0
-        placeholderText.classList.add('hidden');
-        mapWrapper.classList.remove('hidden'); 
-        zoomControls.classList.remove('hidden'); 
-        drawingToolbar.classList.remove('hidden'); 
+                            for (const currentList of affectedLists) {
+                                const listGroupIdRaw = currentList.getAttribute('data-group-id');
+                                let listGroupId = (listGroupIdRaw !== 'unassigned' && listGroupIdRaw !== null) ? Number(listGroupIdRaw) : null;
+                                
+                                const childRows = currentList.querySelectorAll('[data-map-id]');
+                                childRows.forEach((row, newIdx) => {
+                                    const mapId = Number(row.getAttribute('data-map-id'));
+                                    updates.push(
+                                        supabaseClient
+                                            .from('maps_registry')
+                                            .update({ 
+                                                group_id: listGroupId, 
+                                                sort_order: newIdx 
+                                            })
+                                            .eq('id', mapId)
+                                    );
+                                });
+                            }
 
-        // FIX: Isolate width metrics dynamically based on the actual sheet count
-        let totalWidth, maxHeight;
-        if (hasSecondPage) {
-            // Measure the parent flexbox row to grab the side-by-side combined boundaries
-            const rowContainer = document.getElementById('canvasRowContainer');
-            totalWidth = rowContainer.offsetWidth || rowContainer.clientWidth;
-            maxHeight = rowContainer.offsetHeight || rowContainer.clientHeight;
-        } else {
-            // Collapse completely to only fit Sheet 1 bounds if Sheet 2 is missing
-            totalWidth = pdfCanvas.offsetWidth || pdfCanvas.clientWidth || (pdfCanvas.width / 2.5);
-            maxHeight = pdfCanvas.offsetHeight || pdfCanvas.clientHeight || (pdfCanvas.height / 2.5);
+                            console.log(`[Batch Update] Processing ${updates.length} map file position updates...`);
+                            await Promise.all(updates);
+                        } catch (err) {
+                            console.error("Sortable map processing error:", err);
+                        } finally {
+                            isSortingUpdateInProgress = false;
+                            await fetchMapsDirectory();
+                        }
+                    }
+                });
+            });
         }
 
-        // Explicitly sync the drawing wrapper dimensions with the accurate bounds calculated above
-        const wrapper = document.getElementById('mapWrapper');
-        wrapper.style.width = `${totalWidth}px`;
-        wrapper.style.height = `${maxHeight}px`;
-
-        panzoomInstance = Panzoom(panzoomContainer, { maxScale: 6, minScale: 0.5, canvas: true, animate: true });
-        
-        // Attach smooth, responsive click listeners to navigation tools
-        document.getElementById('zoomReset').addEventListener('click', () => {
-            if (panzoomInstance) {
-                panzoomInstance.reset();
-                adjustPinScaling();
-                hideIssuePopover();
-            }
-        });
-
-        document.getElementById('zoomIn').addEventListener('click', () => {
-            if (panzoomInstance) {
-                panzoomInstance.zoomIn();
-                adjustPinScaling();
-            }
-        });
-
-        document.getElementById('zoomOut').addEventListener('click', () => {
-            if (panzoomInstance) {
-                panzoomInstance.zoomOut();
-                adjustPinScaling();
-            }
-        });
-
-        panzoomContainer.parentElement.addEventListener('wheel', (e) => {
-            if (!panzoomInstance) return;
-            e.preventDefault();
-            panzoomInstance.zoomWithWheel(e);
-            adjustPinScaling();
+        async function loadActiveMap(mapObj) {
+            currentMapId = mapObj.id;
+            fetchMapsDirectory(); 
+            placeholderText.innerHTML = "<p class='text-[#1985a1] font-semibold animate-pulse'>Loading Map Sheets...</p>";
+            mapWrapper.classList.add('hidden'); 
+            zoomControls.classList.add('hidden'); 
+            drawingToolbar.classList.add('hidden');
             hideIssuePopover();
-        });
 
-        panzoomContainer.addEventListener('panzoomchange', () => { adjustPinScaling(); hideIssuePopover(); });
-        document.getElementById('tool-view').click();
-        fetchPins();
-    } catch (err) {
-        placeholderText.innerHTML = `<p class='text-red-400'>Error loading resource asset frame.</p>`;
-        console.error(err);
-    }
-}
+            // 1. Destroy existing Panzoom instance safely
+            if (panzoomInstance) {
+                panzoomInstance.destroy();
+                panzoomInstance = null;
+            }
+
+            // 2. Clear stale transform state to prevent map-switch scale compounding
+            panzoomContainer.style.transition = 'none';
+            panzoomContainer.style.transform = 'none';
+            void panzoomContainer.offsetHeight; 
+            panzoomContainer.style.transition = '';
+
+            try {
+                const pdf = await pdfjsLib.getDocument(mapObj.file_url).promise;
+                const hasSecondPage = pdf.numPages >= 2;
+                
+                // Render Sheet 1
+                const page1 = await pdf.getPage(1);
+                const viewport1 = page1.getViewport({ scale: 2.5 }); 
+                const context1 = pdfCanvas.getContext('2d');
+                pdfCanvas.height = viewport1.height; 
+                pdfCanvas.width = viewport1.width;
+                await page1.render({ canvasContext: context1, viewport: viewport1 }).promise;
+
+                const canvas2El = document.getElementById('pdfCanvas2');
+
+                // Render Sheet 2 if it exists
+                if (hasSecondPage) {
+                    canvas2El.classList.remove('hidden');
+                    const page2 = await pdf.getPage(2);
+                    const viewport2 = page2.getViewport({ scale: 2.5 });
+                    const context2 = canvas2El.getContext('2d');
+                    canvas2El.height = viewport2.height;
+                    canvas2El.width = viewport2.width;
+                    await page2.render({ canvasContext: context2, viewport: viewport2 }).promise;
+                } else {
+                    canvas2El.classList.add('hidden');
+                }
+                
+                placeholderText.classList.add('hidden');
+                mapWrapper.classList.remove('hidden'); 
+                zoomControls.classList.remove('hidden'); 
+                drawingToolbar.classList.remove('hidden'); 
+
+                let totalWidth, maxHeight;
+                if (hasSecondPage) {
+                    const rowContainer = document.getElementById('canvasRowContainer');
+                    totalWidth = rowContainer.offsetWidth || rowContainer.clientWidth;
+                    maxHeight = rowContainer.offsetHeight || rowContainer.clientHeight;
+                } else {
+                    totalWidth = pdfCanvas.offsetWidth || pdfCanvas.clientWidth || (pdfCanvas.width / 2.5);
+                    maxHeight = pdfCanvas.offsetHeight || pdfCanvas.clientHeight || (pdfCanvas.height / 2.5);
+                }
+
+                const wrapper = document.getElementById('mapWrapper');
+                wrapper.style.width = `${totalWidth}px`;
+                wrapper.style.height = `${maxHeight}px`;
+
+                // 3. Re-initialize standard Panzoom configuration
+                requestAnimationFrame(() => {
+                    panzoomInstance = Panzoom(panzoomContainer, { 
+                        maxScale: 6, 
+                        minScale: 0.5, 
+                        canvas: true, 
+                        animate: true 
+                    });
+                    
+                    panzoomInstance.reset({ animate: false });
+
+                    const zoomResetBtn = document.getElementById('zoomReset');
+                    const zoomInBtn = document.getElementById('zoomIn');
+                    const zoomOutBtn = document.getElementById('zoomOut');
+
+                    zoomResetBtn.onclick = () => {
+                        if (panzoomInstance) {
+                            panzoomInstance.reset();
+                            adjustPinScaling();
+                            hideIssuePopover();
+                        }
+                    };
+
+                    zoomInBtn.onclick = () => {
+                        if (panzoomInstance) {
+                            panzoomInstance.zoomIn();
+                            adjustPinScaling();
+                        }
+                    };
+
+                    zoomOutBtn.onclick = () => {
+                        if (panzoomInstance) {
+                            panzoomInstance.zoomOut();
+                            adjustPinScaling();
+                        }
+                    };
+
+                    // Restored original standard wheel handler
+                    panzoomContainer.parentElement.onwheel = (e) => {
+                        if (!panzoomInstance) return;
+                        e.preventDefault();
+                        panzoomInstance.zoomWithWheel(e);
+                        adjustPinScaling();
+                        hideIssuePopover();
+                    };
+
+                    panzoomContainer.onpanzoomchange = () => { 
+                        adjustPinScaling(); 
+                        hideIssuePopover(); 
+                    };
+
+                    document.getElementById('tool-view').click();
+                    fetchPins();
+                });
+
+            } catch (err) {
+                placeholderText.innerHTML = `<p class='text-red-400'>Error loading resource asset frame.</p>`;
+                console.error(err);
+            }
+        }
 
         async function togglePinStatus(pinId, currentStatus) {
             const nextStatus = currentStatus === 'fixed' ? 'open' : 'fixed';
@@ -1274,278 +1280,339 @@ async function loadActiveMap(mapObj) {
             e.stopPropagation();
             triggerIssuePopover(e, err);
         }
+let sidebarScrollPosition = 0; // Track scroll position in memory
 
-        async function fetchPins() {
-            if (!currentMapId) return;
-            const { data, error } = await supabaseClient.from('map_errors').select('*').eq('map_id', currentMapId).order('error_number', { ascending: true });
-            if (!error) { activeErrors = data; renderUI(); }
-        }
+async function fetchPins() {
+    if (!currentMapId) return;
+
+    // Check if the user is currently typing inside an input or select element
+    const activeEl = document.activeElement;
+    const isUserEditing = activeEl && sidebarList.contains(activeEl) && 
+        (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT');
+
+    // Skip remote overwrite while the user is actively typing in a field
+    if (isUserEditing && !newlyCreatedPinId) {
+        return;
+    }
+
+    // Save scroll position before fetching new data
+    if (sidebarList) {
+        sidebarScrollPosition = sidebarList.scrollTop;
+    }
+
+    const { data, error } = await supabaseClient
+        .from('map_errors')
+        .select('*')
+        .eq('map_id', currentMapId)
+        .order('error_number', { ascending: true });
+
+    if (!error) { 
+        activeErrors = data; 
+        renderUI(); 
+    }
+}
 
 function renderUI() {
-            // Render map elements (safe to redraw because they are on the canvas wrapper)
-            dotsContainer.innerHTML = '';
-            const linesToRemove = vectorDrawingOverlay.querySelectorAll('line');
-            linesToRemove.forEach(el => el.remove());
+    // Capture current focus state & selection position prior to UI manipulation
+    const activeElement = document.activeElement;
+    let activeInputId = null;
+    let selectionStart = 0;
+    let selectionEnd = 0;
 
-            const canvasWidth = mapWrapper.offsetWidth || mapWrapper.clientWidth;
-            const canvasHeight = mapWrapper.offsetHeight || mapWrapper.clientHeight;
-            
-            vectorDrawingOverlay.setAttribute('viewBox', `0 0 ${canvasWidth} ${canvasHeight}`);
+    if (activeElement && sidebarList.contains(activeElement) && (activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT')) {
+        activeInputId = activeElement.id;
+        if (activeElement.tagName === 'TEXTAREA') {
+            selectionStart = activeElement.selectionStart || 0;
+            selectionEnd = activeElement.selectionEnd || 0;
+        }
+    }
 
-            // Draw vector geometries on the map
-            activeErrors.forEach((err) => {
-                const pinNumber = err.error_number || '?';
-                const isFixed = err.status === 'fixed';
-                const colorHex = isFixed ? '#059669' : '#dc2626';
-                const dotColorClass = isFixed ? 'bg-emerald-600' : 'bg-red-600';
-                const badgeColorClass = isFixed ? 'bg-emerald-600' : 'bg-red-600';
+    // Preserve scroll position
+    if (sidebarList && sidebarList.scrollTop > 0) {
+        sidebarScrollPosition = sidebarList.scrollTop;
+    }
 
-                let showOnMap = true;
-                if (!isFixed && !pinsVisible) showOnMap = false;
-                if (isFixed && !fixedPinsVisible) showOnMap = false;
+    dotsContainer.innerHTML = '';
+    const linesToRemove = vectorDrawingOverlay.querySelectorAll('line');
+    linesToRemove.forEach(el => el.remove());
 
-                if (showOnMap) {
-                    if (err.tool_type === 'line' || err.tool_type === 'dash' || err.tool_type === 'arrow') {
-                        const coords = JSON.parse(err.geometry_data);
-                        if (coords) {
-                            const pixelX1 = (coords.x1 / 100) * canvasWidth;
-                            const pixelY1 = (coords.y1 / 100) * canvasHeight;
-                            const pixelX2 = (coords.x2 / 100) * canvasWidth;
-                            const pixelY2 = (coords.y2 / 100) * canvasHeight;
+    const canvasWidth = mapWrapper.offsetWidth || mapWrapper.clientWidth;
+    const canvasHeight = mapWrapper.offsetHeight || mapWrapper.clientHeight;
+    
+    vectorDrawingOverlay.setAttribute('viewBox', `0 0 ${canvasWidth} ${canvasHeight}`);
 
-                            const svgLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                            svgLine.setAttribute('class', 'svg-markup-line cursor-pointer pointer-events-auto');
-                            svgLine.setAttribute('x1', pixelX1); 
-                            svgLine.setAttribute('y1', pixelY1);
-                            svgLine.setAttribute('x2', pixelX2); 
-                            svgLine.setAttribute('y2', pixelY2);
-                            svgLine.setAttribute('stroke', colorHex); 
-                            svgLine.setAttribute('stroke-width', '3');
-                            
-                            if (err.tool_type === 'dash') svgLine.setAttribute('stroke-dasharray', '6,6');
-                            if (err.tool_type === 'arrow') svgLine.setAttribute('marker-end', isFixed ? 'url(#arrowhead-fixed)' : 'url(#arrowhead)');
-                            
-                            svgLine.addEventListener('click', (e) => handlePinClick(e, err));
-                            vectorDrawingOverlay.appendChild(svgLine);
-                            
-                            const startMarker = document.createElement('div');
-                            startMarker.className = `error-dot absolute ${dotColorClass} text-white font-bold rounded-full flex items-center justify-center shadow-md pointer-events-auto cursor-pointer`;
-                            startMarker.style.left = `${coords.x1}%`; 
-                            startMarker.style.top = `${coords.y1}%`;
-                            startMarker.innerText = pinNumber;
-                            startMarker.onclick = (e) => handlePinClick(e, err);
-                            dotsContainer.appendChild(startMarker);
-                        }
-                    } else if (err.tool_type === 'text') {
-                        const labelText = err.description || 'Type text...';
-                        const textLabel = document.createElement('div');
-                        textLabel.className = `map-text-annotation absolute font-medium rounded shadow whitespace-nowrap flex items-center h-[8px] py-0 pl-0 pr-1 space-x-1 pointer-events-auto cursor-pointer transition ${isFixed ? 'text-emerald-800 border-emerald-300 bg-emerald-50' : 'text-red-800 border-red-300 bg-red-50'}`;
-                        textLabel.style.left = `${err.x_percent}%`; 
-                        textLabel.style.top = `${err.y_percent}%`;
-                        
-                        textLabel.innerHTML = `
-                            <span class="${badgeColorClass} text-white rounded-full w-[14px] h-[14px] text-[8px] flex items-center justify-center font-bold shrink-0 m-0">${pinNumber}</span>
-                            <span class="font-bold tracking-tight text-[8px] self-center pl-1 leading-none">${labelText}</span>
-                        `;
-                        textLabel.onclick = (e) => handlePinClick(e, err);
-                        dotsContainer.appendChild(textLabel);
-                    } else {
-                        const dot = document.createElement('div');
-                        dot.className = `error-dot absolute ${dotColorClass} text-white font-bold rounded-full flex items-center justify-center shadow-lg pointer-events-auto cursor-pointer`;
-                        dot.style.left = `${err.x_percent}%`; 
-                        dot.style.top = `${err.y_percent}%`;
-                        dot.innerText = pinNumber;
-                        dot.onclick = (e) => handlePinClick(e, err);
-                        dotsContainer.appendChild(dot);
-                    }
-                }
-            });
+    activeErrors.forEach((err) => {
+        const pinNumber = err.error_number || '?';
+        const isFixed = err.status === 'fixed';
+        const colorHex = isFixed ? '#059669' : '#dc2626';
+        const dotColorClass = isFixed ? 'bg-emerald-600' : 'bg-red-600';
+        const badgeColorClass = isFixed ? 'bg-emerald-600' : 'bg-red-600';
 
-            // --- SMART SIDEBAR DOM RECONCILIATION ---
-            if (activeErrors.length === 0) {
-                sidebarList.innerHTML = '<p class="text-sm text-gray-400 italic">No Issues Logged Yet</p>';
-                return;
-            }
+        let showOnMap = true;
+        if (!isFixed && !pinsVisible) showOnMap = false;
+        if (isFixed && !fixedPinsVisible) showOnMap = false;
 
-            // Remove static text placeholders if they exist
-            const emptyPlaceholder = sidebarList.querySelector('p');
-            if (emptyPlaceholder) emptyPlaceholder.remove();
+        if (showOnMap) {
+            if (err.tool_type === 'line' || err.tool_type === 'dash' || err.tool_type === 'arrow') {
+                const coords = JSON.parse(err.geometry_data);
+                if (coords) {
+                    const pixelX1 = (coords.x1 / 100) * canvasWidth;
+                    const pixelY1 = (coords.y1 / 100) * canvasHeight;
+                    const pixelX2 = (coords.x2 / 100) * canvasWidth;
+                    const pixelY2 = (coords.y2 / 100) * canvasHeight;
 
-            // Track active elements to remove stale cards
-            const currentDatabaseIds = new Set(activeErrors.map(err => err.id));
-            const existingDOMCards = sidebarList.querySelectorAll('[data-card-issue-id]');
-            existingDOMCards.forEach(card => {
-                const issueId = card.getAttribute('data-card-issue-id');
-                if (!currentDatabaseIds.has(issueId)) {
-                    card.remove();
-                }
-            });
-
-            let inputToFocus = null;
-
-            activeErrors.forEach((err, index) => {
-                const pinNumber = err.error_number || '?';
-                const isFixed = err.status === 'fixed';
-                
-                const cardColorClass = isFixed ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800';
-                const badgeColorClass = isFixed ? 'bg-emerald-600' : 'bg-red-600';
-
-                let typePrefix = 'Point';
-                if (err.tool_type === 'line') typePrefix = 'Line';
-                if (err.tool_type === 'dash') typePrefix = 'Dash';
-                if (err.tool_type === 'arrow') typePrefix = 'Arrow';
-                if (err.tool_type === 'text') typePrefix = 'Map Text';
-
-                const displayCreator = err.created_by ? `<span class="text-[10px] font-medium text-slate-500 italic">by ${err.created_by}</span>` : '';
-                
-                // Find or create card element
-                let item = sidebarList.querySelector(`[data-card-issue-id="${err.id}"]`);
-                const isNewCard = !item;
-
-                if (isNewCard) {
-                    item = document.createElement('div');
-                    item.setAttribute('data-card-issue-id', err.id);
-                    item.className = `p-3 border rounded-lg shadow-sm text-sm flex flex-col relative group transition duration-150 ${cardColorClass}`;
+                    const svgLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    svgLine.setAttribute('class', 'svg-markup-line cursor-pointer pointer-events-auto');
+                    svgLine.setAttribute('x1', pixelX1); 
+                    svgLine.setAttribute('y1', pixelY1);
+                    svgLine.setAttribute('x2', pixelX2); 
+                    svgLine.setAttribute('y2', pixelY2);
+                    svgLine.setAttribute('stroke', colorHex); 
+                    svgLine.setAttribute('stroke-width', '3');
                     
-                    // Create base internal structure on absolute initial render only
-                    item.innerHTML = `
-                        <div class="flex justify-between items-start mb-1.5">
-                            <div class="flex items-center space-x-1.5 flex-1 cursor-pointer status-badge-zone">
-                                <span class="badge-number text-white rounded-full w-5 h-5 text-xs flex items-center justify-center font-bold"></span>
-                                <span class="type-badge text-[9px] font-bold text-slate-500 bg-slate-200/80 px-1 rounded"></span>
-                                <span class="status-badge text-[10px] font-bold tracking-wide uppercase px-1 py-0.5 rounded"></span>
-                                <span class="creator-badge"></span>
-                            </div>
-                            <button class="delete-pin-btn text-xs text-gray-400 hover:text-red-600 font-bold transition opacity-0 group-hover:opacity-100 cursor-pointer p-0.5 rounded hover:bg-gray-200/50">Delete</button>
-                        </div>
-                        <div class="w-full mt-1 space-y-2">
-                            <textarea id="input-${err.id}" rows="1" oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px';" class="w-full border border-slate-300 rounded px-2 py-1 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 select-text resize-none overflow-hidden block" style="height: auto; min-height: 28px;"></textarea>
-                            <div class="annotation-layer-container flex flex-col space-y-0.5 hidden">
-                                <label class="text-[10px] font-bold text-slate-400 tracking-tight uppercase">Annotation Layer</label>
-                                <select id="layer-select-${err.id}" class="w-full bg-slate-100 border border-slate-300 rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 focus:outline-none cursor-pointer">
-                                </select>
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    item.className = `p-3 border rounded-lg shadow-sm text-sm flex flex-col relative group transition duration-150 ${cardColorClass}`;
+                    if (err.tool_type === 'dash') svgLine.setAttribute('stroke-dasharray', '6,6');
+                    if (err.tool_type === 'arrow') svgLine.setAttribute('marker-end', isFixed ? 'url(#arrowhead-fixed)' : 'url(#arrowhead)');
+                    
+                    svgLine.addEventListener('click', (e) => handlePinClick(e, err));
+                    vectorDrawingOverlay.appendChild(svgLine);
+                    
+                    const startMarker = document.createElement('div');
+                    startMarker.className = `error-dot absolute ${dotColorClass} text-white font-bold rounded-full flex items-center justify-center shadow-md pointer-events-auto cursor-pointer`;
+                    startMarker.style.left = `${coords.x1}%`; 
+                    startMarker.style.top = `${coords.y1}%`;
+                    startMarker.innerText = pinNumber;
+                    startMarker.onclick = (e) => handlePinClick(e, err);
+                    dotsContainer.appendChild(startMarker);
                 }
-
-                // Update static metadata without redrawing entire sections
-                const badgeNum = item.querySelector('.badge-number');
-                badgeNum.className = `badge-number ${badgeColorClass} text-white rounded-full w-5 h-5 text-xs flex items-center justify-center font-bold`;
-                badgeNum.innerText = pinNumber;
-
-                item.querySelector('.type-badge').innerText = typePrefix;
-
-                const statusB = item.querySelector('.status-badge');
-                statusB.className = `status-badge text-[10px] font-bold tracking-wide uppercase px-1 py-0.5 rounded ${isFixed ? 'bg-emerald-200 text-emerald-800' : 'bg-red-200 text-red-800'}`;
-                statusB.innerText = err.status;
-
-                item.querySelector('.creator-badge').innerHTML = displayCreator;
-
-                const deleteBtn = item.querySelector('.delete-pin-btn');
-                if (activeTool === 'view') {
-                    deleteBtn.classList.add('hidden');
-                } else {
-                    deleteBtn.classList.remove('hidden');
-                }
-
-                // Setup or update dropdown list options dynamically
-                const selectDropdown = item.querySelector(`#layer-select-${err.id}`);
-                const layerContainer = item.querySelector('.annotation-layer-container');
+            } else if (err.tool_type === 'text') {
+                const labelText = err.description || 'Type text...';
+                const textLabel = document.createElement('div');
+                textLabel.className = `map-text-annotation absolute font-medium rounded shadow whitespace-nowrap flex items-center h-[8px] py-0 pl-0 pr-1 space-x-1 pointer-events-auto cursor-pointer transition ${isFixed ? 'text-emerald-800 border-emerald-300 bg-emerald-50' : 'text-red-800 border-red-300 bg-red-50'}`;
+                textLabel.style.left = `${err.x_percent}%`; 
+                textLabel.style.top = `${err.y_percent}%`;
                 
-                if (err.tool_type === 'text') {
-                    layerContainer.classList.remove('hidden');
-                    
-                    // Only modify select list items if the user is NOT actively using the dropdown menu
-                    if (document.activeElement !== selectDropdown) {
-                        const defaultOptionSelected = (!err.gis_layer) ? 'selected' : '';
-                        let layerOptionsHTML = `<option value="" ${defaultOptionSelected}>--- Select Layer (Unassigned) ---</option>`;
-                        GIS_LAYERS_REGISTRY.forEach(layerName => {
-                            const isSelected = err.gis_layer === layerName ? 'selected' : '';
-                            layerOptionsHTML += `<option value="${layerName}" ${isSelected}>${layerName}</option>`;
-                        });
-                        selectDropdown.innerHTML = layerOptionsHTML;
-                    }
-                } else {
-                    layerContainer.classList.add('hidden');
-                }
-
-                // Update input values delicately to preserve typing state on the active input
-                const inlineInput = item.querySelector(`#input-${err.id}`);
-                inlineInput.placeholder = err.tool_type === 'text' ? 'Type text to overlay on map...' : 'Type error description...';
-                
-                if (document.activeElement !== inlineInput) {
-                    inlineInput.value = err.description || '';
-                }
-
-                // Attach event logic safely (clean existing listeners first)
-                const badgeZone = item.querySelector(`.status-badge-zone`);
-                badgeZone.replaceWith(badgeZone.cloneNode(true));
-                item.querySelector(`.status-badge-zone`).addEventListener('click', () => togglePinStatus(err.id, err.status));
-                
-                if (err.tool_type === 'text') {
-                    // Update input event
-                    inlineInput.replaceWith(inlineInput.cloneNode(true));
-                    const freshInput = item.querySelector(`#input-${err.id}`);
-                    
-                    freshInput.addEventListener('input', (e) => {
-                        const textAnnotationElement = dotsContainer.querySelector(`div[style*="left: ${err.x_percent}%"] span.font-bold:not([class*="badge"])`);
-                        if (textAnnotationElement) { textAnnotationElement.innerText = e.target.value || 'Type text...'; }
-                    });
-                    freshInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') freshInput.blur(); });
-                    freshInput.addEventListener('blur', () => saveInlineDescription(err.id, freshInput.value));
-
-                    // Update drop-down event
-                    selectDropdown.replaceWith(selectDropdown.cloneNode(true));
-                    const freshDropdown = item.querySelector(`#layer-select-${err.id}`);
-                    freshDropdown.addEventListener('change', (e) => { saveInlineLayer(err.id, e.target.value); });
-                    
-                    if (err.id === newlyCreatedPinId) inputToFocus = freshInput;
-                } else {
-                    inlineInput.replaceWith(inlineInput.cloneNode(true));
-                    const freshInput = item.querySelector(`#input-${err.id}`);
-                    freshInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') freshInput.blur(); });
-                    freshInput.addEventListener('blur', () => saveInlineDescription(err.id, freshInput.value));
-                    
-                    if (err.id === newlyCreatedPinId) inputToFocus = freshInput;
-                }
-
-                const finalDelBtn = item.querySelector('.delete-pin-btn');
-                finalDelBtn.replaceWith(finalDelBtn.cloneNode(true));
-                item.querySelector('.delete-pin-btn').addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    await supabaseClient.from('map_errors').delete().eq('id', err.id);
-                });
-
-                // Append or re-order DOM nodes dynamically
-                if (isNewCard) {
-                    sidebarList.appendChild(item);
-                } else {
-                    // Make sure DOM position matches sorted index order perfectly
-                    if (sidebarList.children[index] !== item) {
-                        sidebarList.insertBefore(item, sidebarList.children[index]);
-                    }
-                }
-            });
-
-            // Auto-expand dynamic height on all side panel input fields
-            document.querySelectorAll('#sidebarList textarea').forEach(textarea => {
-                textarea.style.height = 'auto';
-                textarea.style.height = textarea.scrollHeight + 'px';
-            });
-
-            adjustPinScaling();
-
-            if (inputToFocus) {
-                setTimeout(() => {
-                    inputToFocus.focus();
-                    if (activeTool === 'text') inputToFocus.select();
-                    newlyCreatedPinId = null; 
-                }, 50);
+                textLabel.innerHTML = `
+                    <span class="${badgeColorClass} text-white rounded-full w-[14px] h-[14px] text-[8px] flex items-center justify-center font-bold shrink-0 m-0">${pinNumber}</span>
+                    <span class="font-bold tracking-tight text-[8px] self-center pl-1 leading-none">${labelText}</span>
+                `;
+                textLabel.onclick = (e) => handlePinClick(e, err);
+                dotsContainer.appendChild(textLabel);
+            } else {
+                const dot = document.createElement('div');
+                dot.className = `error-dot absolute ${dotColorClass} text-white font-bold rounded-full flex items-center justify-center shadow-lg pointer-events-auto cursor-pointer`;
+                dot.style.left = `${err.x_percent}%`; 
+                dot.style.top = `${err.y_percent}%`;
+                dot.innerText = pinNumber;
+                dot.onclick = (e) => handlePinClick(e, err);
+                dotsContainer.appendChild(dot);
             }
         }
+    });
+
+    if (activeErrors.length === 0) {
+        sidebarList.innerHTML = '<p class="text-sm text-gray-400 italic">No Issues Logged Yet</p>';
+        return;
+    }
+
+    const emptyPlaceholder = sidebarList.querySelector('p');
+    if (emptyPlaceholder) emptyPlaceholder.remove();
+
+    const currentDatabaseIds = new Set(activeErrors.map(err => err.id));
+    const existingDOMCards = sidebarList.querySelectorAll('[data-card-issue-id]');
+    existingDOMCards.forEach(card => {
+        const issueId = card.getAttribute('data-card-issue-id');
+        if (!currentDatabaseIds.has(issueId)) {
+            card.remove();
+        }
+    });
+
+    let inputToFocus = null;
+
+    activeErrors.forEach((err, index) => {
+        const pinNumber = err.error_number || '?';
+        const isFixed = err.status === 'fixed';
+        
+        const cardColorClass = isFixed ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800';
+        const badgeColorClass = isFixed ? 'bg-emerald-600' : 'bg-red-600';
+
+        let typePrefix = 'Point';
+        if (err.tool_type === 'line') typePrefix = 'Line';
+        if (err.tool_type === 'dash') typePrefix = 'Dash';
+        if (err.tool_type === 'arrow') typePrefix = 'Arrow';
+        if (err.tool_type === 'text') typePrefix = 'Map Text';
+
+        const creatorPrefix = err.created_by || '';
+        const creatorColors = getUserColorStyle(creatorPrefix);
+
+        const firstNameRaw = creatorPrefix ? creatorPrefix.split('.')[0].toLowerCase() : '';
+
+        let formattedFirstName = '';
+        if (firstNameRaw === 'mckenzie') {
+            formattedFirstName = 'McKenzie';
+        } else if (firstNameRaw) {
+            formattedFirstName = firstNameRaw.charAt(0).toUpperCase() + firstNameRaw.slice(1);
+        }
+
+        const textHexOrClass = creatorColors.bg.replace(/^bg-/, 'text-');
+
+        const displayCreator = creatorPrefix ? `
+            <span class="text-xs italic">
+                <span class="text-slate-400 font-normal">by</span> 
+                <span class="font-bold saturate-75 opacity-90 ${textHexOrClass}">${formattedFirstName}</span>
+            </span>
+        ` : '';
+        
+        let item = sidebarList.querySelector(`[data-card-issue-id="${err.id}"]`);
+        const isNewCard = !item;
+
+        if (isNewCard) {
+            item = document.createElement('div');
+            item.setAttribute('data-card-issue-id', err.id);
+            item.className = `p-3 border rounded-lg shadow-sm text-sm flex flex-col relative group transition duration-150 ${cardColorClass}`;
+            
+            item.innerHTML = `
+                <div class="flex justify-between items-start mb-1.5">
+                    <div class="flex items-center space-x-1.5 flex-1 cursor-pointer status-badge-zone">
+                        <span class="badge-number text-white rounded-full w-5 h-5 text-xs flex items-center justify-center font-bold"></span>
+                        <span class="type-badge text-[9px] font-bold text-slate-500 bg-slate-200/80 px-1 rounded"></span>
+                        <span class="status-badge text-[10px] font-bold tracking-wide uppercase px-1 py-0.5 rounded"></span>
+                        <span class="creator-badge"></span>
+                    </div>
+                    <button class="delete-pin-btn text-xs text-gray-400 hover:text-red-600 font-bold transition opacity-0 group-hover:opacity-100 cursor-pointer p-0.5 rounded hover:bg-gray-200/50">Delete</button>
+                </div>
+                <div class="w-full mt-1 space-y-2">
+                    <textarea id="input-${err.id}" rows="1" oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px';" class="w-full border border-slate-300 rounded px-2 py-1 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 select-text resize-none overflow-hidden block" style="height: auto; min-height: 28px;"></textarea>
+                    <div class="annotation-layer-container flex flex-col space-y-0.5 hidden">
+                        <label class="text-[10px] font-bold text-slate-400 tracking-tight uppercase">Annotation Layer</label>
+                        <select id="layer-select-${err.id}" class="w-full bg-slate-100 border border-slate-300 rounded px-1.5 py-1 text-[11px] font-semibold text-slate-700 focus:outline-none cursor-pointer">
+                        </select>
+                    </div>
+                </div>
+            `;
+        } else {
+            item.className = `p-3 border rounded-lg shadow-sm text-sm flex flex-col relative group transition duration-150 ${cardColorClass}`;
+        }
+
+        const badgeNum = item.querySelector('.badge-number');
+        badgeNum.className = `badge-number ${badgeColorClass} text-white rounded-full w-5 h-5 text-xs flex items-center justify-center font-bold`;
+        badgeNum.innerText = pinNumber;
+
+        item.querySelector('.type-badge').innerText = typePrefix;
+
+        const statusB = item.querySelector('.status-badge');
+        statusB.className = `status-badge text-[10px] font-bold tracking-wide uppercase px-1 py-0.5 rounded ${isFixed ? 'bg-emerald-200 text-emerald-800' : 'bg-red-200 text-red-800'}`;
+        statusB.innerText = err.status;
+
+        item.querySelector('.creator-badge').innerHTML = displayCreator;
+
+        const deleteBtn = item.querySelector('.delete-pin-btn');
+        if (activeTool === 'view') {
+            deleteBtn.classList.add('hidden');
+        } else {
+            deleteBtn.classList.remove('hidden');
+        }
+
+        const selectDropdown = item.querySelector(`#layer-select-${err.id}`);
+        const layerContainer = item.querySelector('.annotation-layer-container');
+        
+        if (err.tool_type === 'text') {
+            layerContainer.classList.remove('hidden');
+            
+            if (document.activeElement !== selectDropdown) {
+                const defaultOptionSelected = (!err.gis_layer) ? 'selected' : '';
+                let layerOptionsHTML = `<option value="" ${defaultOptionSelected}>--- Select Layer (Unassigned) ---</option>`;
+                GIS_LAYERS_REGISTRY.forEach(layerName => {
+                    const isSelected = err.gis_layer === layerName ? 'selected' : '';
+                    layerOptionsHTML += `<option value="${layerName}" ${isSelected}>${layerName}</option>`;
+                });
+                selectDropdown.innerHTML = layerOptionsHTML;
+            }
+        } else {
+            layerContainer.classList.add('hidden');
+        }
+
+        const inlineInput = item.querySelector(`#input-${err.id}`);
+        inlineInput.placeholder = err.tool_type === 'text' ? 'Type text to overlay on map...' : 'Type error description...';
+        
+        // Never overwrite the value of the active element being typed into
+        if (document.activeElement !== inlineInput) {
+            inlineInput.value = err.description || '';
+        }
+
+        const badgeZone = item.querySelector(`.status-badge-zone`);
+        badgeZone.replaceWith(badgeZone.cloneNode(true));
+        item.querySelector(`.status-badge-zone`).addEventListener('click', () => togglePinStatus(err.id, err.status));
+        
+        if (err.tool_type === 'text') {
+            if (isNewCard) {
+                inlineInput.addEventListener('input', (e) => {
+                    const textAnnotationElement = dotsContainer.querySelector(`div[style*="left: ${err.x_percent}%"] span.font-bold:not([class*="badge"])`);
+                    if (textAnnotationElement) { textAnnotationElement.innerText = e.target.value || 'Type text...'; }
+                });
+                inlineInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') inlineInput.blur(); });
+                inlineInput.addEventListener('blur', () => saveInlineDescription(err.id, inlineInput.value));
+
+                selectDropdown.addEventListener('change', (e) => { saveInlineLayer(err.id, e.target.value); });
+            }
+            if (err.id === newlyCreatedPinId) inputToFocus = inlineInput;
+        } else {
+            if (isNewCard) {
+                inlineInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') inlineInput.blur(); });
+                inlineInput.addEventListener('blur', () => saveInlineDescription(err.id, inlineInput.value));
+            }
+            if (err.id === newlyCreatedPinId) inputToFocus = inlineInput;
+        }
+
+        const finalDelBtn = item.querySelector('.delete-pin-btn');
+        if (isNewCard) {
+            finalDelBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await supabaseClient.from('map_errors').delete().eq('id', err.id);
+            });
+        }
+
+        if (isNewCard) {
+            sidebarList.appendChild(item);
+        } else {
+            if (sidebarList.children[index] !== item) {
+                sidebarList.insertBefore(item, sidebarList.children[index]);
+            }
+        }
+    });
+
+    document.querySelectorAll('#sidebarList textarea').forEach(textarea => {
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+    });
+
+    adjustPinScaling();
+
+    // Restore scroll position
+    if (sidebarList) {
+        sidebarList.scrollTop = sidebarScrollPosition;
+    }
+
+    // Restore active focus and cursor location
+    if (inputToFocus) {
+        setTimeout(() => {
+            inputToFocus.focus();
+            if (activeTool === 'text') inputToFocus.select();
+            newlyCreatedPinId = null; 
+        }, 50);
+    } else if (activeInputId) {
+        const inputToRestore = document.getElementById(activeInputId);
+        if (inputToRestore && document.activeElement !== inputToRestore) {
+            inputToRestore.focus();
+            if (inputToRestore.tagName === 'TEXTAREA') {
+                try {
+                    inputToRestore.setSelectionRange(selectionStart, selectionEnd);
+                } catch (err) {
+                    // Ignore selectionRange errors on unmounted frames
+                }
+            }
+        }
+    }
+}
     </script>
 </body>
 </html>

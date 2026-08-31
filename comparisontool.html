@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Assessor Map Comparison Tool</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -27,6 +28,13 @@
         #swipeHandle {
             touch-action: none;
             user-select: none;
+        }
+        #insetPreviewCanvas {
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: smooth;
+            image-rendering: auto;
+            transition: transform 0.2s ease-out;
+            transform-origin: center center;
         }
     </style>
 </head>
@@ -71,7 +79,7 @@
         <aside class="w-80 bg-[#4c5c68] text-slate-100 flex flex-col h-full border-r border-black/20 shadow-xl z-30 shrink-0">
             
             <!-- STAGE 1: CALIBRATION SETUP SIDEBAR -->
-            <div id="sidebarStageCalib" class="p-4 space-y-4 flex-1 overflow-y-auto flex flex-col justify-between">
+            <div id="sidebarStageCalib" class="p-4 flex-1 overflow-y-auto flex flex-col justify-between">
                 <div class="space-y-4">
                     <div class="border-b border-black/20 pb-2 flex flex-col">
                         <h2 class="font-semibold text-slate-200 text-sm tracking-wider uppercase flex items-center gap-1.5">
@@ -84,25 +92,36 @@
                     <div id="phaseNewMap" class="space-y-3">
                         <span class="text-xs font-bold text-[#8AFF47] uppercase tracking-wider block">NEW MAP</span>
                         
-                        <div class="flex items-center space-x-2">
-                            <div class="flex-1 min-w-0">
-                                <select id="selectNewMap" class="w-full bg-black/20 text-xs text-slate-100 p-2 rounded border border-black/20 outline-none truncate cursor-pointer">
-                                    <option value="">Map List</option>
-                                </select>
+                        <div class="flex items-center space-x-2 relative" id="newMapControlsContainer">
+                            <div class="flex-1 min-w-0" id="containerSelectNew">
+                                <button id="customSelectBtn" type="button" class="w-full bg-[#37434d] hover:bg-[#2f3942] text-xs text-slate-100 p-2 rounded-lg border border-white/10 outline-none flex justify-between items-center cursor-pointer transition shadow-sm">
+                                    <span id="customSelectLabel" class="truncate text-slate-300 font-medium">Select Assessor Map...</span>
+                                    <span class="text-[10px] text-slate-400 ml-1">▼</span>
+                                </button>
                             </div>
 
-                            <span class="text-[10px] text-slate-400 font-bold uppercase shrink-0">OR</span>
+                            <span id="dividerOr" class="text-[10px] text-slate-400 font-bold uppercase shrink-0">OR</span>
 
-                            <div class="flex-1 min-w-0">
+                            <div class="flex-1 min-w-0" id="containerUploadNew">
                                 <label id="lblNewMap" for="uploadNewMap" class="w-full bg-[#1985a1] hover:bg-[#1985a1]/80 text-white text-xs font-semibold py-2 px-2 rounded border border-black/20 cursor-pointer block text-center truncate shadow-sm transition">
-                                    Upload PDF
+                                    Upload
                                 </label>
-                                <input type="file" id="uploadNewMap" accept="application/pdf" class="hidden"/>
+                                <input type="file" id="uploadNewMap" accept="application/pdf,.tif,.tiff" class="hidden"/>
+                            </div>
+
+                            <div id="customSelectMenu" class="absolute left-0 right-0 top-full mt-1.5 bg-[#2d3740] border border-slate-600/60 rounded-lg shadow-2xl max-h-64 overflow-y-auto z-50 hidden p-1.5 space-y-2">
+                                <p class="text-xs text-slate-400 italic p-2">Loading maps database...</p>
                             </div>
                         </div>
 
-                        <div id="instructionNewMap" class="text-xs bg-black/20 p-2.5 rounded border border-black/10 text-slate-200 leading-relaxed hidden">
-                            Click to draw a box around the area you want to compare on the old map.
+                        <div id="instructionNewMap" class="bg-black/30 p-3.5 rounded-xl border border-black/20 text-slate-100 space-y-1.5 shadow-inner hidden">
+                            <div class="text-base font-black text-[#8AFF47] uppercase tracking-wider flex items-center space-x-1.5">
+                                <span>✏️</span>
+                                <span>DRAW BOX</span>
+                            </div>
+                            <p class="text-sm font-semibold text-slate-200 leading-snug">
+                                Click to draw a box around the area you want to compare on the old map.
+                            </p>
                         </div>
                     </div>
 
@@ -110,22 +129,45 @@
                     <div id="phaseOldMap" class="space-y-3 hidden">
                         <span class="text-xs font-bold text-[#FFF547] uppercase tracking-wider block">OLD MAP</span>
                         <label id="lblOldMap" for="uploadOldMap" class="w-full bg-[#1985a1] hover:bg-[#1985a1]/80 text-white text-xs font-semibold py-2 px-3 rounded border border-black/20 cursor-pointer block text-center truncate shadow-sm transition">
-                            Upload PDF
+                            Upload PDF or TIFF
                         </label>
-                        <input type="file" id="uploadOldMap" accept="application/pdf" class="hidden"/>
+                        <input type="file" id="uploadOldMap" accept="application/pdf,.tif,.tiff" class="hidden"/>
 
-                        <div id="instructionOldMap" class="text-xs bg-black/20 p-2.5 rounded border border-black/10 text-slate-200 leading-relaxed hidden">
-                            Click to draw a box around the same area you drew previously.
+                        <div id="instructionOldMap" class="bg-black/30 p-3.5 rounded-xl border border-black/20 text-slate-100 space-y-1.5 shadow-inner hidden">
+                            <div class="text-base font-black text-[#FFF547] uppercase tracking-wider flex items-center space-x-1.5">
+                                <span>✏️</span>
+                                <span>DRAW BOX</span>
+                            </div>
+                            <p class="text-sm font-semibold text-slate-200 leading-snug">
+                                Click to draw a box around the same area you drew previously.
+                            </p>
+                        </div>
+
+                        <!-- INLINE INSET PREVIEW CARD WITH ZOOM BUTTONS -->
+                        <div id="insetPreviewCard" class="w-full bg-[#36424a] border border-slate-600/80 rounded-xl p-2.5 shadow-lg flex flex-col space-y-2 hidden mt-3 relative">
+                            <div class="flex items-center justify-between border-b border-white/10 pb-1">
+                                <span class="text-[10px] font-bold text-[#8AFF47] uppercase tracking-wider flex items-center space-x-1">
+                                    <span>NEW MAP SELECTION</span>
+                                </span>
+                                <!-- STEP ZOOM CONTROLS (LOCKED TO FRAME) -->
+                                <div class="flex items-center space-x-1 bg-black/40 p-0.5 rounded border border-white/10">
+                                    <button id="insetZoomInBtn" type="button" class="px-1.5 py-0.5 bg-[#1985a1] hover:bg-[#1985a1]/80 text-white text-[10px] font-bold rounded cursor-pointer transition">+</button>
+                                    <button id="insetZoomOutBtn" type="button" class="px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-[10px] font-bold rounded cursor-pointer transition opacity-50 cursor-not-allowed" disabled>-</button>
+                                </div>
+                            </div>
+                            <div id="insetCanvasWrapper" class="w-full bg-white/10 rounded overflow-hidden flex items-center justify-center p-1 relative pointer-events-none">
+                                <canvas id="insetPreviewCanvas" class="block rounded shadow-md max-w-full h-auto object-contain"></canvas>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- STAGE 1 COEXISTING BUTTONS -->
-                <div class="pt-4 border-t border-black/20 flex space-x-2">
-                    <button id="redoDrawingsBtnCalib" class="flex-1 py-1.5 bg-[#1985a1] hover:bg-[#1985a1]/80 text-white text-xs font-bold rounded transition cursor-pointer shadow hidden">
+                <!-- STAGE 1 BUTTONS -->
+                <div class="mt-8 pt-4 border-t border-black/20 flex space-x-2 shrink-0">
+                    <button id="redoDrawingsBtnCalib" class="flex-1 py-2 bg-[#1985a1] hover:bg-[#1985a1]/80 text-white text-xs font-bold rounded transition cursor-pointer shadow hidden">
                         Restart Drawing
                     </button>
-                    <button id="resetSetupBtnCalib" class="flex-1 py-1.5 bg-black/20 hover:bg-black/30 text-xs font-semibold text-slate-200 rounded transition cursor-pointer hidden">
+                    <button id="resetSetupBtnCalib" class="flex-1 py-2 bg-black/20 hover:bg-black/30 text-xs font-semibold text-slate-200 rounded transition cursor-pointer hidden">
                         Start Over
                     </button>
                 </div>
@@ -134,7 +176,6 @@
             <!-- STAGE 2: FINAL COMPARISON CONTROL SIDEBAR -->
             <div id="sidebarStageOverlay" class="p-4 space-y-5 flex-1 overflow-y-auto hidden flex flex-col justify-between">
                 <div class="space-y-5">
-                    <!-- HEADER WITH FULL VIEW TOGGLE BUTTON -->
                     <div class="border-b border-black/20 pb-2 flex justify-between items-center">
                         <h2 class="font-semibold text-slate-200 text-sm tracking-wider uppercase">COMPARISON TOOLS</h2>
                         <button id="toggleFullViewBtn" class="text-[10px] font-bold px-2 py-1 rounded bg-black/30 hover:bg-black/50 text-slate-200 border border-white/10 transition cursor-pointer flex items-center gap-1 shrink-0">
@@ -143,14 +184,11 @@
                         </button>
                     </div>
 
-                    <!-- VIEW MODE SWITCHER & INTEGRATED PANELS -->
                     <div class="space-y-2">
-                        <!-- Opacity Button (Default) -->
                         <button id="modeBtnOpacity" class="w-full py-2 px-3 text-xs font-bold rounded bg-[#1985a1] text-white flex justify-between items-center cursor-pointer transition shadow-md">
                             <span>Opacity</span>
                         </button>
 
-                        <!-- Opacity Control Panel -->
                         <div id="panelOpacityControl" class="space-y-3 bg-black/10 p-3 rounded-lg border border-black/10 mt-1">
                             <div class="space-y-1 pt-1 border-t border-white/5">
                                 <div class="flex justify-between text-xs font-semibold">
@@ -168,12 +206,10 @@
                             </div>
                         </div>
 
-                        <!-- Transparency Button -->
                         <button id="modeBtnTransparency" class="w-full py-2 px-3 text-xs font-bold rounded bg-black/20 hover:bg-black/30 text-slate-300 flex justify-between items-center cursor-pointer transition">
                             <span>Transparency</span>
                         </button>
 
-                        <!-- Transparency Control Panel -->
                         <div id="panelTransparencyControl" class="space-y-3 bg-black/10 p-3 rounded-lg border border-black/10 mt-1 hidden">
                             <div class="space-y-1 pt-1 border-t border-white/5">
                                 <div class="flex justify-between text-xs font-semibold">
@@ -191,24 +227,21 @@
                             </div>
                         </div>
 
-                        <!-- Slider Button -->
                         <button id="modeBtnSwipe" class="w-full py-2 px-3 text-xs font-bold rounded bg-black/20 hover:bg-black/30 text-slate-300 flex justify-between items-center cursor-pointer transition">
                             <span>Slider</span>
                         </button>
 
-                        <!-- Side-By-Side Button -->
                         <button id="modeBtnSideBySide" class="w-full py-2 px-3 text-xs font-bold rounded bg-black/20 hover:bg-black/30 text-slate-300 flex justify-between items-center cursor-pointer transition">
                             <span>Side-By-Side</span>
                         </button>
                     </div>
                 </div>
 
-                <!-- STAGE 2 COEXISTING BUTTONS -->
-                <div class="pt-4 border-t border-black/20 flex space-x-2">
-                    <button id="redoDrawingsBtn" class="flex-1 py-1.5 bg-[#1985a1] hover:bg-[#1985a1]/80 text-white text-xs font-bold rounded transition cursor-pointer shadow">
+                <div class="mt-8 pt-4 border-t border-black/20 flex space-x-2 shrink-0">
+                    <button id="redoDrawingsBtn" class="flex-1 py-2 bg-[#1985a1] hover:bg-[#1985a1]/80 text-white text-xs font-bold rounded transition cursor-pointer shadow">
                         Restart Drawing
                     </button>
-                    <button id="resetSetupBtnOverlay" class="flex-1 py-1.5 bg-black/20 hover:bg-black/30 text-xs font-semibold text-slate-200 rounded transition cursor-pointer">
+                    <button id="resetSetupBtnOverlay" class="flex-1 py-2 bg-black/20 hover:bg-black/30 text-xs font-semibold text-slate-200 rounded transition cursor-pointer">
                         Start Over
                     </button>
                 </div>
@@ -218,7 +251,6 @@
         <!-- CENTER MAP VIEWPORT -->
         <div class="flex-1 relative bg-slate-300 overflow-hidden flex items-center justify-center" id="mapViewport">
             
-            <!-- IN-PAGE CONFIRMATION MODAL -->
             <div id="areaConfirmModal" class="absolute z-[100] bg-slate-900/90 backdrop-blur-md text-white p-5 rounded-2xl shadow-2xl border border-slate-700 max-w-xs w-full text-center flex flex-col space-y-4 hidden">
                 <div class="space-y-1">
                     <h3 class="text-sm font-bold text-slate-100">Selection Complete</h3>
@@ -230,15 +262,12 @@
                 </div>
             </div>
 
-            <!-- IN-PAGE SHEET SELECTION MODAL -->
             <div id="sheetSelectModal" class="absolute z-[105] bg-slate-900/95 backdrop-blur-md text-white p-6 rounded-2xl shadow-2xl border border-slate-700 max-w-xs w-full text-center flex flex-col space-y-4 hidden">
                 <div class="space-y-1">
                     <h3 class="text-sm font-bold text-slate-100">Multi-Sheet Map</h3>
                     <p class="text-xs text-slate-300">Which sheet do you want to compare?</p>
                 </div>
-                <div id="sheetButtonsContainer" class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1">
-                    <!-- Dynamic Sheet Buttons -->
-                </div>
+                <div id="sheetButtonsContainer" class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1"></div>
             </div>
 
             <!-- ZOOM CONTROLS -->
@@ -248,10 +277,7 @@
                 <button id="zoomReset" class="px-2 py-1 bg-black/20 hover:bg-black/40 rounded text-xs cursor-pointer">Reset View</button>
             </div>
 
-            <!-- SINGLE PANZOOM CONTAINER -->
             <div id="panzoomContainer" class="inline-block relative">
-                
-                <!-- CALIBRATION MAP WRAPPER -->
                 <div id="calibMapWrapper" class="relative hidden select-none bg-white shadow-2xl">
                     <canvas id="calibCanvas" class="block bg-white"></canvas>
                     <svg id="calibSvg" class="absolute inset-0 z-10 w-full h-full cursor-crosshair pointer-events-auto">
@@ -261,7 +287,6 @@
                     <div id="calibNodes" class="absolute inset-0 pointer-events-none z-20"></div>
                 </div>
 
-                <!-- OVERLAY COMPOSITE WRAPPER -->
                 <div id="overlayWrapper" class="relative hidden select-none shadow-2xl bg-white border border-slate-400 overflow-hidden">
                     <div id="overlayFlexContainer" class="relative bg-white">
                         <canvas id="canvasCropOld" class="block bg-white shrink-0"></canvas>
@@ -271,19 +296,13 @@
                         </div>
                     </div>
 
-                    <!-- Swipe Handle: 15px grab zone with a centered 5px visual line inside -->
                     <div id="swipeHandle" class="absolute top-0 bottom-0 w-[15px] cursor-ew-resize z-50 flex items-center justify-center hidden -ml-[7.5px]">
-                        <!-- Visual 5px Vertical Line -->
                         <div class="absolute inset-y-0 w-[5px] bg-purple-500/80 hover:bg-purple-600 transition-colors"></div>
-                        
-                        <!-- Circle Grab Handle Button -->
                         <div class="w-7 h-7 bg-purple-600 rounded-full border-2 border-white flex items-center justify-center text-white text-xs font-bold shadow-2xl pointer-events-none z-10">↔</div>
                     </div>
                 </div>
-
             </div>
 
-            <!-- DUAL LINKED VIEWPORTS (SIDE-BY-SIDE MODE) -->
             <div id="sideBySideContainer" class="w-full h-full flex flex-row items-center justify-center gap-4 p-4 hidden">
                 <div id="viewportSideNew" class="flex-1 h-full relative overflow-hidden bg-[#cad5e2] rounded-xl shadow-inner border border-[#FFFFFF] flex items-center justify-center">
                     <span class="absolute top-3 left-3 z-30 bg-black/60 text-[#8AFF47] text-[10px] font-bold px-2 py-1 rounded backdrop-blur">NEW MAP</span>
@@ -300,7 +319,6 @@
                 </div>
             </div>
 
-            <!-- INITIAL PLACEHOLDER TEXT -->
             <div id="placeholderText" class="text-[#4c5c68] text-center z-10">
                 <p class="text-lg font-bold opacity-80 text-[#4c5c68]">No Assessor Map Selected</p>
                 <p class="text-sm text-slate-500 font-medium">Choose or Upload a New Map From The Left Sidebar</p>
@@ -310,7 +328,7 @@
     </div>
 
     <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
         const SUPABASE_URL = "https://wsacgqykgmnsxzaqyvpn.supabase.co";
         const SUPABASE_KEY = "sb_publishable_Tg79inBzykOOvoyN0ne1Jw_i7BpKu4D";
@@ -350,6 +368,11 @@
 
         let activeOldBlobUrl = null;
         let activeNewBlobUrl = null;
+        let activeNewFileObj = null;
+        let activeOldFileObj = null;
+
+        // INSET ZOOM SCALE TRACKER
+        let insetCurrentScale = 1.0;
 
         initAuthCheck();
 
@@ -388,40 +411,23 @@
             window.location.reload();
         });
 
-        async function fetchMapsList() {
-            const { data, error } = await supabaseClient.from('maps_registry').select('*').order('map_name', { ascending: true });
-            if (error) return console.error(error);
-            mapsRegistry = data || [];
-
-            const selectNew = document.getElementById('selectNewMap');
-            let opts = '<option value="">Map List</option>';
-            
-            for (const m of mapsRegistry) {
-                const baseName = m.map_name.replace(/\.pdf$/i, '');
-                try {
-                    const loadingTask = pdfjsLib.getDocument({ url: m.file_url, rangeChunkSize: 65536 });
-                    const pdfDoc = await loadingTask.promise;
-                    if (pdfDoc.numPages > 1) {
-                        for (let p = 1; p <= pdfDoc.numPages; p++) {
-                            opts += `<option value="${m.id}_page_${p}">${baseName} - Sheet ${p}</option>`;
-                        }
-                    } else {
-                        opts += `<option value="${m.id}">${baseName}</option>`;
-                    }
-                } catch(err) {
-                    opts += `<option value="${m.id}">${baseName}</option>`;
-                }
-            }
-            selectNew.innerHTML = opts;
-        }
-
         function getCleanFileName(file) {
-            if (!file) return 'Upload PDF';
+            if (!file) return 'Upload';
             return file.name.replace(/\.[^/.]+$/, "");
         }
 
+        function isTiffSource(source) {
+            if (!source) return false;
+            if (typeof source === 'string') return source.match(/\.(tif|tiff)(\?.*)?$/i) !== null;
+            if (source.name) return source.name.match(/\.(tif|tiff)$/i) !== null;
+            return false;
+        }
+
         function updateHeaderTitle(mapName) {
-            document.getElementById('headerMapName').innerText = mapName ? `- ${mapName}` : '';
+            const headerElem = document.getElementById('headerMapName');
+            if (headerElem) {
+                headerElem.innerText = mapName ? `- ${mapName}` : '';
+            }
         }
 
         function promptSheetSelection(pdfDoc, fileName, onSelect) {
@@ -442,27 +448,53 @@
             modal.classList.remove('hidden');
         }
 
-        function sortQuadPoints(pts) {
-            if (pts.length !== 4) return pts;
-            const sortedByY = [...pts].sort((a, b) => a.y - b.y);
-            const topTwo = sortedByY.slice(0, 2).sort((a, b) => a.x - b.x);
-            const bottomTwo = sortedByY.slice(2, 4).sort((a, b) => a.x - b.x);
-
-            return [
-                topTwo[0],     // Top-Left
-                topTwo[1],     // Top-Right
-                bottomTwo[1],  // Bottom-Right
-                bottomTwo[0]   // Bottom-Left
-            ];
+        function getEmailPrefix(email) {
+            if (!email) return 'Unknown';
+            return email.split('@')[0].toLowerCase();
         }
 
-        // TOGGLE FULL VIEW MODE HANDLER
+        function getUserColorStyle(prefix) {
+            if (!prefix) return { bg: 'bg-slate-400', border: 'border-slate-500', text: 'text-white' };
+            if (prefix === 'mckenzie.bowey') return { bg: 'bg-[#e83a3a]', border: 'border-[#d12e2e]', text: 'text-white' };
+            if (prefix === 'ian.freel') return { bg: 'bg-[#249fb3]', border: 'border-[#1b8294]', text: 'text-white' };
+            if (prefix === 'aspen.buckingham') return { bg: 'bg-[#86ad32]', border: 'border-[#86ad32]', text: 'text-white' };
+            
+            let hash = 0;
+            for (let i = 0; i < prefix.length; i++) hash = prefix.charCodeAt(i) + ((hash << 5) - hash);
+            const palettes = [
+                { bg: 'bg-indigo-600', border: 'border-indigo-700', text: 'text-white' },
+                { bg: 'bg-amber-600', border: 'border-amber-700', text: 'text-white' },
+                { bg: 'bg-purple-600', border: 'border-purple-700', text: 'text-white' },
+                { bg: 'bg-cyan-600', border: 'border-cyan-700', text: 'text-white' }
+            ];
+            return palettes[Math.abs(hash) % palettes.length];
+        }
+
+        function applyNewMapChoiceLock(mode) {
+            const divider = document.getElementById('dividerOr');
+            const containerSelect = document.getElementById('containerSelectNew');
+            const containerUpload = document.getElementById('containerUploadNew');
+
+            if (mode === 'dropdown') {
+                if (divider) divider.classList.add('hidden');
+                if (containerUpload) containerUpload.classList.add('hidden');
+            } else if (mode === 'upload') {
+                if (divider) divider.classList.add('hidden');
+                if (containerSelect) containerSelect.classList.add('hidden');
+            } else {
+                if (divider) divider.classList.remove('hidden');
+                if (containerSelect) containerSelect.classList.remove('hidden');
+                if (containerUpload) containerUpload.classList.remove('hidden');
+            }
+        }
+
         const toggleFullViewBtn = document.getElementById('toggleFullViewBtn');
         const fullViewStatusText = document.getElementById('fullViewStatusText');
 
         if (toggleFullViewBtn) {
             toggleFullViewBtn.onclick = () => {
                 isFullViewMode = !isFullViewMode;
+                
                 if (isFullViewMode) {
                     fullViewStatusText.innerText = 'ON';
                     fullViewStatusText.className = 'text-[#8AFF47] font-bold uppercase';
@@ -479,69 +511,217 @@
             };
         }
 
-        // --- STEP 1: NEW MAP LOADERS ---
-        document.getElementById('selectNewMap')?.addEventListener('change', async (e) => {
-            const val = e.target.value;
-            if (!val) return;
+        const customSelectBtn = document.getElementById('customSelectBtn');
+        const customSelectMenu = document.getElementById('customSelectMenu');
 
-            const [mapId, pageStr] = val.split('_page_');
-            const pageNum = pageStr ? parseInt(pageStr, 10) : 1;
+        if (customSelectBtn) {
+            customSelectBtn.onclick = (e) => {
+                e.stopPropagation();
+                customSelectMenu.classList.toggle('hidden');
+            };
 
-            const mapObj = mapsRegistry.find(m => m.id == mapId);
-            if (!mapObj) return;
+            window.addEventListener('click', (e) => {
+                if (customSelectMenu && !customSelectMenu.contains(e.target) && e.target !== customSelectBtn) {
+                    customSelectMenu.classList.add('hidden');
+                }
+            });
+        }
 
-            document.getElementById('uploadNewMap').value = '';
-            document.getElementById('lblNewMap').innerText = 'Upload PDF';
-            if (activeNewBlobUrl) { URL.revokeObjectURL(activeNewBlobUrl); activeNewBlobUrl = null; }
+        async function fetchMapsList() {
+            const menuContainer = document.getElementById('customSelectMenu');
+            if (!menuContainer) return;
 
-            activeNewPageNum = pageNum;
-            const baseName = mapObj.map_name.replace(/\.pdf$/i, '');
-            const cleanName = pageStr ? `${baseName} S${pageNum}` : baseName;
-            updateHeaderTitle(cleanName);
+            const [groupsRes, mapsRes] = await Promise.all([
+                supabaseClient.from('map_groups').select('*').order('sort_order', { ascending: true }),
+                supabaseClient.from('maps_registry').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: false })
+            ]);
 
-            document.getElementById('resetSetupBtnCalib')?.classList.remove('hidden');
-
-            const res = await renderPdfToCanvas(mapObj.file_url, pageNum);
-            pdfImageNew = res.imgData;
-            dimNew = { w: res.w, h: res.h };
+            if (mapsRes.error || groupsRes.error) return console.error(mapsRes.error || groupsRes.error);
             
-            document.getElementById('instructionNewMap').classList.remove('hidden');
-        });
+            const rawGroups = groupsRes.data || [];
+            const rawMaps = mapsRes.data || [];
+            mapsRegistry = rawMaps;
+
+            menuContainer.innerHTML = '';
+            if (rawMaps.length === 0) {
+                menuContainer.innerHTML = '<p class="text-xs text-slate-300/60 italic p-2">No maps available.</p>';
+                return;
+            }
+
+            const mapsByGroup = {};
+            rawMaps.forEach(map => {
+                const gId = map.group_id || 'unassigned';
+                if (!mapsByGroup[gId]) mapsByGroup[gId] = [];
+                mapsByGroup[gId].push(map);
+            });
+
+            rawGroups.forEach(group => {
+                const groupMaps = mapsByGroup[group.id] || [];
+                if (groupMaps.length === 0) return;
+
+                const groupFolderCard = document.createElement('div');
+                groupFolderCard.className = "flex flex-col bg-[#44535d] rounded-lg overflow-hidden border border-black/20 mb-2.5 text-slate-200 shadow-sm";
+
+                const groupHeader = document.createElement('div');
+                groupHeader.className = "w-full flex justify-between items-center bg-[#36424a] px-3 py-2 text-xs font-bold text-slate-200 select-none pointer-events-none";
+                groupHeader.innerHTML = `<span class="flex items-center space-x-2"><span class="text-sm">📂</span><span class="tracking-wide">${group.group_name}</span></span>`;
+                groupFolderCard.appendChild(groupHeader);
+
+                const itemsWrapper = document.createElement('div');
+                itemsWrapper.className = "p-1.5 space-y-1 bg-[#44535d]";
+
+                groupMaps.forEach(m => {
+                    const baseName = m.map_name.replace(/\.(pdf|tif|tiff)$/i, '');
+                    const reviewers = m.reviewed_by || [];
+
+                    const itemBtn = document.createElement('div');
+                    itemBtn.className = "w-full text-left px-2.5 py-1.5 bg-[#44535d] hover:bg-[#3d4b54] text-slate-200 hover:text-white rounded-md text-xs flex justify-between items-center cursor-pointer transition select-none shadow-xs";
+
+                    const labelSpan = document.createElement('span');
+                    labelSpan.className = "truncate pr-2 font-medium flex items-center space-x-1.5 pointer-events-none";
+                    labelSpan.innerHTML = `<span class="opacity-70">📄</span><span>${baseName}</span>`;
+
+                    const badgeWrapper = document.createElement('div');
+                    badgeWrapper.className = "flex items-center space-x-1 shrink-0 pointer-events-none";
+
+                    reviewers.forEach(prefix => {
+                        const badge = document.createElement('span');
+                        const colors = getUserColorStyle(prefix);
+                        const initials = prefix.split('.').map(p => p.charAt(0).toUpperCase()).join('').slice(0, 2);
+                        
+                        badge.className = `w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center ${colors.bg} ${colors.text} ${colors.border} border shadow-xs`;
+                        badge.innerText = initials;
+                        badge.title = `Reviewed by ${prefix}`;
+                        badgeWrapper.appendChild(badge);
+                    });
+
+                    itemBtn.appendChild(labelSpan);
+                    itemBtn.appendChild(badgeWrapper);
+
+                    itemBtn.onclick = async (e) => {
+                        e.stopPropagation();
+                        customSelectMenu.classList.add('hidden');
+                        
+                        const labelElem = document.getElementById('customSelectLabel');
+                        if (labelElem) {
+                            labelElem.innerText = baseName;
+                            labelElem.className = "truncate text-white font-bold";
+                        }
+
+                        applyNewMapChoiceLock('dropdown');
+                        
+                        document.getElementById('uploadNewMap').value = '';
+                        document.getElementById('lblNewMap').innerText = 'Upload';
+                        if (activeNewBlobUrl) { URL.revokeObjectURL(activeNewBlobUrl); activeNewBlobUrl = null; }
+                        activeNewFileObj = null;
+
+                        try {
+                            if (isTiffSource(m.file_url)) {
+                                activeNewPageNum = 1;
+                                updateHeaderTitle(baseName);
+                                document.getElementById('resetSetupBtnCalib')?.classList.remove('hidden');
+
+                                const res = await renderMapSourceToCanvas(m.file_url, 1);
+                                if (res) {
+                                    pdfImageNew = res.imgData;
+                                    dimNew = { w: res.w, h: res.h };
+                                    document.getElementById('instructionNewMap').classList.remove('hidden');
+                                }
+                            } else {
+                                const pdfDoc = await pdfjsLib.getDocument({
+                                    url: m.file_url,
+                                    cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                                    cMapPacked: true
+                                }).promise;
+
+                                const loadSheet = async (sheetNum) => {
+                                    activeNewPageNum = sheetNum;
+                                    const cleanName = pdfDoc.numPages > 1 ? `${baseName} S${sheetNum}` : baseName;
+                                    updateHeaderTitle(cleanName);
+                                    document.getElementById('resetSetupBtnCalib')?.classList.remove('hidden');
+
+                                    const res = await renderMapSourceToCanvas(m.file_url, sheetNum);
+                                    if (res) {
+                                        pdfImageNew = res.imgData;
+                                        dimNew = { w: res.w, h: res.h };
+                                        document.getElementById('instructionNewMap').classList.remove('hidden');
+                                    }
+                                };
+
+                                if (pdfDoc.numPages > 1) {
+                                    promptSheetSelection(pdfDoc, baseName, loadSheet);
+                                } else {
+                                    loadSheet(1);
+                                }
+                            }
+                        } catch(err) {
+                            console.error("Error loading map from dropdown selection:", err);
+                        }
+                    };
+
+                    itemsWrapper.appendChild(itemBtn);
+                });
+
+                groupFolderCard.appendChild(itemsWrapper);
+                menuContainer.appendChild(groupFolderCard);
+            });
+        }
 
         document.getElementById('uploadNewMap')?.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
-            document.getElementById('selectNewMap').value = '';
+            applyNewMapChoiceLock('upload');
+
             const baseName = getCleanFileName(file);
 
             if (activeNewBlobUrl) URL.revokeObjectURL(activeNewBlobUrl);
             activeNewBlobUrl = URL.createObjectURL(file);
+            activeNewFileObj = file;
 
-            const pdfDoc = await pdfjsLib.getDocument(activeNewBlobUrl).promise;
-
-            const loadChosenNewSheet = async (sheetNum) => {
-                activeNewPageNum = sheetNum;
-                const cleanName = pdfDoc.numPages > 1 ? `${baseName} S${sheetNum}` : baseName;
-                document.getElementById('lblNewMap').innerText = cleanName;
-                updateHeaderTitle(cleanName);
-
+            if (isTiffSource(file)) {
+                activeNewPageNum = 1;
+                document.getElementById('lblNewMap').innerText = baseName;
+                updateHeaderTitle(baseName);
                 document.getElementById('resetSetupBtnCalib')?.classList.remove('hidden');
 
-                const res = await renderPdfToCanvas(activeNewBlobUrl, sheetNum);
-                pdfImageNew = res.imgData;
-                dimNew = { w: res.w, h: res.h };
-                document.getElementById('instructionNewMap').classList.remove('hidden');
-            };
-
-            if (pdfDoc.numPages > 1) {
-                promptSheetSelection(pdfDoc, baseName, loadChosenNewSheet);
+                const res = await renderMapSourceToCanvas(file, 1);
+                if (res) {
+                    pdfImageNew = res.imgData;
+                    dimNew = { w: res.w, h: res.h };
+                    document.getElementById('instructionNewMap').classList.remove('hidden');
+                }
             } else {
-                loadChosenNewSheet(1);
+                const pdfDoc = await pdfjsLib.getDocument({
+                    data: await file.arrayBuffer(),
+                    cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                    cMapPacked: true
+                }).promise;
+
+                const loadChosenNewSheet = async (sheetNum) => {
+                    activeNewPageNum = sheetNum;
+                    const cleanName = pdfDoc.numPages > 1 ? `${baseName} S${sheetNum}` : baseName;
+                    document.getElementById('lblNewMap').innerText = cleanName;
+                    updateHeaderTitle(cleanName);
+
+                    document.getElementById('resetSetupBtnCalib')?.classList.remove('hidden');
+
+                    const res = await renderMapSourceToCanvas(file, sheetNum);
+                    if (res) {
+                        pdfImageNew = res.imgData;
+                        dimNew = { w: res.w, h: res.h };
+                        document.getElementById('instructionNewMap').classList.remove('hidden');
+                    }
+                };
+
+                if (pdfDoc.numPages > 1) {
+                    promptSheetSelection(pdfDoc, baseName, loadChosenNewSheet);
+                } else {
+                    loadChosenNewSheet(1);
+                }
             }
         });
 
-        // --- STEP 2: OLD MAP LOADER ---
         document.getElementById('uploadOldMap')?.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -550,32 +730,62 @@
 
             if (activeOldBlobUrl) URL.revokeObjectURL(activeOldBlobUrl);
             activeOldBlobUrl = URL.createObjectURL(file);
+            activeOldFileObj = file;
 
             currentActiveTab = 'Old';
-            const pdfDoc = await pdfjsLib.getDocument(activeOldBlobUrl).promise;
 
-            const loadChosenOldSheet = async (sheetNum) => {
-                activeOldPageNum = sheetNum;
-                const cleanName = pdfDoc.numPages > 1 ? `${baseName} S${sheetNum}` : baseName;
-                document.getElementById('lblOldMap').innerText = cleanName;
+            if (isTiffSource(file)) {
+                activeOldPageNum = 1;
+                document.getElementById('lblOldMap').innerText = baseName;
 
-                const res = await renderPdfToCanvas(activeOldBlobUrl, sheetNum);
-                pdfImageOld = res.imgData;
-                dimOld = { w: res.w, h: res.h };
-                
-                document.getElementById('instructionOldMap').classList.remove('hidden');
-                drawQuadUI();
-            };
-
-            if (pdfDoc.numPages > 1) {
-                promptSheetSelection(pdfDoc, baseName, loadChosenOldSheet);
+                const res = await renderMapSourceToCanvas(file, 1);
+                if (res) {
+                    pdfImageOld = res.imgData;
+                    dimOld = { w: res.w, h: res.h };
+                    document.getElementById('instructionOldMap').classList.remove('hidden');
+                    renderNewMapInsetThumbnail();
+                    drawQuadUI();
+                }
             } else {
-                loadChosenOldSheet(1);
+                const pdfDoc = await pdfjsLib.getDocument({
+                    data: await file.arrayBuffer(),
+                    cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                    cMapPacked: true
+                }).promise;
+
+                const loadChosenOldSheet = async (sheetNum) => {
+                    activeOldPageNum = sheetNum;
+                    const cleanName = pdfDoc.numPages > 1 ? `${baseName} S${sheetNum}` : baseName;
+                    document.getElementById('lblOldMap').innerText = cleanName;
+
+                    const res = await renderMapSourceToCanvas(file, sheetNum);
+                    if (res) {
+                        pdfImageOld = res.imgData;
+                        dimOld = { w: res.w, h: res.h };
+                        document.getElementById('instructionOldMap').classList.remove('hidden');
+                        renderNewMapInsetThumbnail();
+                        drawQuadUI();
+                    }
+                };
+
+                if (pdfDoc.numPages > 1) {
+                    promptSheetSelection(pdfDoc, baseName, loadChosenOldSheet);
+                } else {
+                    loadChosenOldSheet(1);
+                }
             }
         });
 
-        async function renderPdfToCanvas(url, pageNum = 1) {
-            placeholderText.innerHTML = "<p class='text-[#1985a1] font-semibold animate-pulse'>Rendering Map Sheet...</p>";
+        async function renderMapSourceToCanvas(source, pageNum = 1) {
+            if (isTiffSource(source)) {
+                return await renderTiffToCanvas(source);
+            } else {
+                return await renderPdfToCanvas(source, pageNum);
+            }
+        }
+
+        async function renderTiffToCanvas(source) {
+            placeholderText.innerHTML = "<p class='text-[#1985a1] font-semibold animate-pulse'>Decoding High-DPI TIFF Map...</p>";
             placeholderText.classList.remove('hidden');
             
             document.getElementById('calibMapWrapper').classList.add('hidden');
@@ -584,17 +794,149 @@
             document.getElementById('panzoomContainer').classList.remove('hidden');
             document.getElementById('zoomControls').classList.add('hidden');
 
-            if (panzoomInstance) panzoomInstance.destroy();
+            if (panzoomInstance) {
+                panzoomInstance.destroy();
+                panzoomInstance = null;
+            }
 
             try {
-                const pdf = await pdfjsLib.getDocument(url).promise;
+                let arrayBuffer;
+                if (source instanceof File || source instanceof Blob) {
+                    arrayBuffer = await source.arrayBuffer();
+                } else if (typeof source === 'string') {
+                    const response = await fetch(source);
+                    arrayBuffer = await response.arrayBuffer();
+                } else {
+                    throw new Error("Invalid TIFF source");
+                }
+
+                const ifds = UTIF.decode(arrayBuffer);
+                if (!ifds || ifds.length === 0) throw new Error("Could not decode TIFF metadata");
+
+                UTIF.decodeImage(arrayBuffer, ifds[0]);
+                const rgba = UTIF.toRGBA8(ifds[0]);
+
+                const origWidth = ifds[0].width;
+                const origHeight = ifds[0].height;
+
+                const dpiRatio = window.devicePixelRatio || 1;
+                const maxPhysicalDimension = 6000;
+                let scale = 1.0;
+
+                if (origWidth > maxPhysicalDimension || origHeight > maxPhysicalDimension) {
+                    scale = Math.min(maxPhysicalDimension / origWidth, maxPhysicalDimension / origHeight);
+                }
+
+                const targetWidth = Math.floor(origWidth * scale);
+                const targetHeight = Math.floor(origHeight * scale);
+
+                const rawCanvas = document.createElement('canvas');
+                rawCanvas.width = origWidth;
+                rawCanvas.height = origHeight;
+                const rawCtx = rawCanvas.getContext('2d');
+                const rawImgData = rawCtx.createImageData(origWidth, origHeight);
+                rawImgData.data.set(rgba);
+                rawCtx.putImageData(rawImgData, 0, 0);
+
+                const canvas = document.getElementById('calibCanvas');
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                ctx.imageSmoothingEnabled = false;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
+
+                ctx.drawImage(rawCanvas, 0, 0, origWidth, origHeight, 0, 0, targetWidth, targetHeight);
+
+                const svg = document.getElementById('calibSvg');
+                svg.setAttribute('viewBox', `0 0 ${targetWidth} ${targetHeight}`);
+
+                placeholderText.classList.add('hidden');
+                document.getElementById('calibMapWrapper').classList.remove('hidden');
+                document.getElementById('zoomControls').classList.remove('hidden');
+
+                const calibWrapper = document.getElementById('calibMapWrapper');
+                const logicalWidth = targetWidth / dpiRatio;
+                const logicalHeight = targetHeight / dpiRatio;
+                
+                const scaledWidth = Math.min(window.innerWidth * 0.65, logicalWidth / 2);
+                const scaledHeight = scaledWidth * (logicalHeight / logicalWidth);
+
+                calibWrapper.style.width = `${scaledWidth}px`;
+                calibWrapper.style.height = `${scaledHeight}px`;
+
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+
+                const container = document.getElementById('panzoomContainer');
+                panzoomInstance = Panzoom(container, { maxScale: 6, minScale: 0.5, canvas: true, animate: false });
+                panzoomInstance.reset({ animate: false });
+
+                setupZoomListeners();
+
+                return {
+                    imgData: ctx.getImageData(0, 0, canvas.width, canvas.height),
+                    w: canvas.width,
+                    h: canvas.height
+                };
+            } catch (err) {
+                placeholderText.innerHTML = `<p class='text-red-400'>Error loading map file.</p>`;
+                console.error(err);
+            }
+        }
+
+        async function renderPdfToCanvas(source, pageNum = 1) {
+            placeholderText.innerHTML = "<p class='text-[#1985a1] font-semibold animate-pulse'>Rendering High-DPI Map Sheet...</p>";
+            placeholderText.classList.remove('hidden');
+            
+            document.getElementById('calibMapWrapper').classList.add('hidden');
+            document.getElementById('overlayWrapper').classList.add('hidden');
+            document.getElementById('sideBySideContainer').classList.add('hidden');
+            document.getElementById('panzoomContainer').classList.remove('hidden');
+            document.getElementById('zoomControls').classList.add('hidden');
+
+            if (panzoomInstance) {
+                panzoomInstance.destroy();
+                panzoomInstance = null;
+            }
+
+            try {
+                let pdfParam;
+                if (source instanceof File) {
+                    pdfParam = { data: await source.arrayBuffer() };
+                } else {
+                    pdfParam = { url: source };
+                }
+
+                const pdf = await pdfjsLib.getDocument({
+                    ...pdfParam,
+                    cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                    cMapPacked: true
+                }).promise;
+                
                 const page = await pdf.getPage(pageNum);
-                const viewport = page.getViewport({ scale: 2.5 });
+                
+                const dpiRatio = window.devicePixelRatio || 1;
+                const baseScale = 2.5;
+                let targetScale = baseScale * dpiRatio;
+
+                const unscaledViewport = page.getViewport({ scale: 1.0 });
+                const maxPhysicalDimension = 6000;
+                if ((unscaledViewport.width * targetScale) > maxPhysicalDimension || (unscaledViewport.height * targetScale) > maxPhysicalDimension) {
+                    const scaleW = maxPhysicalDimension / unscaledViewport.width;
+                    const scaleH = maxPhysicalDimension / unscaledViewport.height;
+                    targetScale = Math.min(scaleW, scaleH);
+                }
+
+                const viewport = page.getViewport({ scale: targetScale });
                 
                 const canvas = document.getElementById('calibCanvas');
-                const ctx = canvas.getContext('2d');
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                ctx.imageSmoothingEnabled = false;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                canvas.width = Math.floor(viewport.width);
+                canvas.height = Math.floor(viewport.height);
 
                 await page.render({ canvasContext: ctx, viewport }).promise;
 
@@ -606,8 +948,11 @@
                 document.getElementById('zoomControls').classList.remove('hidden');
 
                 const calibWrapper = document.getElementById('calibMapWrapper');
-                const scaledWidth = Math.min(window.innerWidth * 0.65, viewport.width / 2);
-                const scaledHeight = scaledWidth * (viewport.height / viewport.width);
+                const logicalWidth = viewport.width / dpiRatio;
+                const logicalHeight = viewport.height / dpiRatio;
+                
+                const scaledWidth = Math.min(window.innerWidth * 0.65, logicalWidth / 2);
+                const scaledHeight = scaledWidth * (logicalHeight / logicalWidth);
 
                 calibWrapper.style.width = `${scaledWidth}px`;
                 calibWrapper.style.height = `${scaledHeight}px`;
@@ -616,7 +961,8 @@
                 canvas.style.height = '100%';
 
                 const container = document.getElementById('panzoomContainer');
-                panzoomInstance = Panzoom(container, { maxScale: 6, minScale: 0.5, canvas: true, animate: true });
+                panzoomInstance = Panzoom(container, { maxScale: 6, minScale: 0.5, canvas: true, animate: false });
+                panzoomInstance.reset({ animate: false });
 
                 setupZoomListeners();
 
@@ -626,39 +972,48 @@
                     h: canvas.height
                 };
             } catch (err) {
-                placeholderText.innerHTML = `<p class='text-red-400'>Error loading map PDF sheet.</p>`;
+                placeholderText.innerHTML = `<p class='text-red-400'>Error loading map file.</p>`;
                 console.error(err);
             }
         }
 
         function setupZoomListeners() {
             const zReset = document.getElementById('zoomReset');
-            if (zReset) zReset.onclick = () => {
-                if (activeComparisonMode === 'sidebyside') {
-                    if (pzSideOld) pzSideOld.reset();
-                    if (pzSideNew) pzSideNew.reset();
-                } else if (panzoomInstance) {
-                    panzoomInstance.reset();
-                }
-            };
+            if (zReset) {
+                zReset.onclick = (e) => {
+                    e.preventDefault();
+                    if (activeComparisonMode === 'sidebyside') {
+                        if (pzSideOld) pzSideOld.reset({ animate: false });
+                        if (pzSideNew) pzSideNew.reset({ animate: false });
+                    } else if (panzoomInstance) {
+                        panzoomInstance.reset({ animate: false });
+                    }
+                };
+            }
 
             const zIn = document.getElementById('zoomIn');
-            if (zIn) zIn.onclick = () => {
-                if (activeComparisonMode === 'sidebyside') {
-                    if (pzSideOld) pzSideOld.zoomIn();
-                } else if (panzoomInstance) {
-                    panzoomInstance.zoomIn();
-                }
-            };
+            if (zIn) {
+                zIn.onclick = (e) => {
+                    e.preventDefault();
+                    if (activeComparisonMode === 'sidebyside') {
+                        if (pzSideOld) pzSideOld.zoomIn();
+                    } else if (panzoomInstance) {
+                        panzoomInstance.zoomIn();
+                    }
+                };
+            }
 
             const zOut = document.getElementById('zoomOut');
-            if (zOut) zOut.onclick = () => {
-                if (activeComparisonMode === 'sidebyside') {
-                    if (pzSideOld) pzSideOld.zoomOut();
-                } else if (panzoomInstance) {
-                    panzoomInstance.zoomOut();
-                }
-            };
+            if (zOut) {
+                zOut.onclick = (e) => {
+                    e.preventDefault();
+                    if (activeComparisonMode === 'sidebyside') {
+                        if (pzSideOld) pzSideOld.zoomOut();
+                    } else if (panzoomInstance) {
+                        panzoomInstance.zoomOut();
+                    }
+                };
+            }
 
             const container = document.getElementById('panzoomContainer');
             if (container && container.parentElement) {
@@ -671,10 +1026,165 @@
             }
         }
 
-        // --- CLAMPED QUAD SELECTION ENGINE WITH POPUP PROMPT ---
         const calibSvg = document.getElementById('calibSvg');
         const areaConfirmModal = document.getElementById('areaConfirmModal');
+        const insetPreviewCard = document.getElementById('insetPreviewCard');
+        const insetPreviewCanvas = document.getElementById('insetPreviewCanvas');
+        const insetZoomInBtn = document.getElementById('insetZoomInBtn');
+        const insetZoomOutBtn = document.getElementById('insetZoomOutBtn');
         
+        function sortQuadPoints(pts) {
+            if (pts.length !== 4) return pts;
+            const sortedByY = [...pts].sort((a, b) => a.y - b.y);
+            const topTwo = sortedByY.slice(0, 2).sort((a, b) => a.x - b.x);
+            const bottomTwo = sortedByY.slice(2, 4).sort((a, b) => a.x - b.x);
+
+            return [
+                topTwo[0],
+                topTwo[1],
+                bottomTwo[1],
+                bottomTwo[0]
+            ];
+        }
+
+        // --- UPDATED INSET THUMBNAIL ZOOM LOGIC ---
+        function calculateQuadCenterPercent(pts) {
+            if (!pts || pts.length !== 4) return { x: 50, y: 50 };
+            const sumX = pts.reduce((acc, p) => acc + p.x, 0);
+            const sumY = pts.reduce((acc, p) => acc + p.y, 0);
+            return {
+                x: sumX / 4,
+                y: sumY / 4
+            };
+        }
+
+        // --- UPDATED CANVAS-LEVEL INSET ZOOM ENGINE ---
+        function updateInsetZoomTransform() {
+            renderNewMapInsetThumbnail();
+
+            // Enable/disable button states based on scale bounds
+            if (insetZoomOutBtn) {
+                if (insetCurrentScale <= 1.001) {
+                    insetZoomOutBtn.disabled = true;
+                    insetZoomOutBtn.className = "px-1.5 py-0.5 bg-slate-700 text-slate-400 text-[10px] font-bold rounded opacity-50 cursor-not-allowed";
+                } else {
+                    insetZoomOutBtn.disabled = false;
+                    insetZoomOutBtn.className = "px-1.5 py-0.5 bg-[#1985a1] hover:bg-[#1985a1]/80 text-white text-[10px] font-bold rounded cursor-pointer transition";
+                }
+            }
+
+            if (insetZoomInBtn) {
+                if (insetCurrentScale >= 4.0) {
+                    insetZoomInBtn.disabled = true;
+                    insetZoomInBtn.className = "px-1.5 py-0.5 bg-slate-700 text-slate-400 text-[10px] font-bold rounded opacity-50 cursor-not-allowed";
+                } else {
+                    insetZoomInBtn.disabled = false;
+                    insetZoomInBtn.className = "px-1.5 py-0.5 bg-[#1985a1] hover:bg-[#1985a1]/80 text-white text-[10px] font-bold rounded cursor-pointer transition";
+                }
+            }
+        }
+
+        if (insetZoomInBtn) {
+            insetZoomInBtn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (insetCurrentScale < 4.0) {
+                    insetCurrentScale += 0.5;
+                    updateInsetZoomTransform();
+                }
+            };
+        }
+
+        if (insetZoomOutBtn) {
+            insetZoomOutBtn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (insetCurrentScale > 1.0) {
+                    insetCurrentScale -= 0.5;
+                    if (insetCurrentScale < 1.0) insetCurrentScale = 1.0;
+                    updateInsetZoomTransform();
+                }
+            };
+        }
+
+        function renderNewMapInsetThumbnail() {
+            if (!pdfImageNew || pointsNew.length !== 4) return;
+
+            // Reset CSS transform scaling so DOM layout stays clean
+            insetPreviewCanvas.style.transform = 'none';
+
+            const sortedNew = sortQuadPoints(pointsNew);
+            const pNewPx = sortedNew.map(p => ({ x: (p.x / 100) * dimNew.w, y: (p.y / 100) * dimNew.h }));
+
+            // 1. Calculate selection bounding box and center
+            const xs = pNewPx.map(p => p.x);
+            const ys = pNewPx.map(p => p.y);
+            const minX = Math.min(...xs);
+            const maxX = Math.max(...xs);
+            const minY = Math.min(...ys);
+            const maxY = Math.max(...ys);
+
+            const quadCenterX = (minX + maxX) / 2;
+            const quadCenterY = (minY + maxY) / 2;
+
+            // 2. Adjust viewport frame based on zoom level (zooming narrows the viewport toward the boundary)
+            const viewWidth = dimNew.w / insetCurrentScale;
+            const viewHeight = dimNew.h / insetCurrentScale;
+
+            // Clamp camera viewport to map dimensions
+            let cropX = quadCenterX - (viewWidth / 2);
+            let cropY = quadCenterY - (viewHeight / 2);
+
+            if (cropX < 0) cropX = 0;
+            if (cropY < 0) cropY = 0;
+            if (cropX + viewWidth > dimNew.w) cropX = dimNew.w - viewWidth;
+            if (cropY + viewHeight > dimNew.h) cropY = dimNew.h - viewHeight;
+
+            // 3. Set display canvas resolution
+            insetPreviewCanvas.width = viewWidth;
+            insetPreviewCanvas.height = viewHeight;
+
+            const ctx = insetPreviewCanvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+
+            // 4. Draw the zoomed map section directly
+            ctx.putImageData(pdfImageNew, -cropX, -cropY);
+
+            // 5. Draw dark mask outside the drawn quad box relative to zoomed frame
+            ctx.save();
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
+            ctx.beginPath();
+            ctx.rect(0, 0, viewWidth, viewHeight);
+            pNewPx.forEach((pt, i) => {
+                const localX = pt.x - cropX;
+                const localY = pt.y - cropY;
+                if (i === 0) ctx.moveTo(localX, localY);
+                else ctx.lineTo(localX, localY);
+            });
+            ctx.closePath();
+            ctx.fill('evenodd');
+
+            // 6. Draw dashed boundary polygon line
+            ctx.strokeStyle = '#8c8b8b';
+            ctx.lineWidth = Math.max(4, Math.round(viewWidth / 180));
+            ctx.setLineDash([10, 10]);
+            ctx.beginPath();
+            pNewPx.forEach((pt, i) => {
+                const localX = pt.x - cropX;
+                const localY = pt.y - cropY;
+                if (i === 0) ctx.moveTo(localX, localY);
+                else ctx.lineTo(localX, localY);
+            });
+            ctx.closePath();
+            ctx.stroke();
+            ctx.restore();
+
+            // 7. Lock aspect ratio to match zoomed view
+            insetPreviewCanvas.style.aspectRatio = `${viewWidth} / ${viewHeight}`;
+            insetPreviewCard.classList.remove('hidden');
+        }
+
         function getClampedPercents(e) {
             const wrapper = document.getElementById('calibMapWrapper');
             const rect = wrapper.getBoundingClientRect();
@@ -690,8 +1200,43 @@
             return { x: xPct, y: yPct };
         }
 
+        let isDraggingMap = false;
+        let pointerStartX = 0;
+        let pointerStartY = 0;
+
         if (calibSvg) {
+            calibSvg.onpointerdown = (e) => {
+                isDraggingMap = false;
+                pointerStartX = e.clientX;
+                pointerStartY = e.clientY;
+            };
+
+            calibSvg.onpointermove = (e) => {
+                if (e.buttons > 0) {
+                    const dist = Math.hypot(e.clientX - pointerStartX, e.clientY - pointerStartY);
+                    if (dist > 5) {
+                        isDraggingMap = true;
+                    }
+                }
+
+                const calibWrapper = document.getElementById('calibMapWrapper');
+                if (calibWrapper.classList.contains('hidden') || 
+                    !areaConfirmModal.classList.contains('hidden') || 
+                    !document.getElementById('sheetSelectModal').classList.contains('hidden')) return;
+
+                const points = currentActiveTab === 'New' ? pointsNew : pointsOld;
+                if (points.length > 0 && points.length < 4 && !isDraggingMap) {
+                    const clamped = getClampedPercents(e);
+                    drawQuadUI(clamped);
+                }
+            };
+
             calibSvg.onclick = (e) => {
+                if (isDraggingMap) {
+                    isDraggingMap = false;
+                    return;
+                }
+
                 const points = currentActiveTab === 'New' ? pointsNew : pointsOld;
                 if (points.length >= 4) return;
 
@@ -705,18 +1250,6 @@
             };
         }
 
-        window.addEventListener('pointermove', (e) => {
-            const calibWrapper = document.getElementById('calibMapWrapper');
-            if (calibWrapper.classList.contains('hidden') || !areaConfirmModal.classList.contains('hidden') || !document.getElementById('sheetSelectModal').classList.contains('hidden')) return;
-
-            const points = currentActiveTab === 'New' ? pointsNew : pointsOld;
-            if (points.length > 0 && points.length < 4) {
-                const clamped = getClampedPercents(e);
-                drawQuadUI(clamped);
-            }
-        });
-
-        // IN-PAGE POPUP CONFIRMATION ACTIONS
         document.getElementById('btnConfirmAreaNo')?.addEventListener('click', () => {
             areaConfirmModal.classList.add('hidden');
             if (currentActiveTab === 'New') {
@@ -731,27 +1264,33 @@
             areaConfirmModal.classList.add('hidden');
 
             document.getElementById('redoDrawingsBtnCalib')?.classList.remove('hidden');
+            document.getElementById('resetSetupBtnCalib')?.classList.remove('hidden');
 
             if (currentActiveTab === 'New') {
                 document.getElementById('phaseNewMap').classList.add('hidden');
                 document.getElementById('phaseOldMap').classList.remove('hidden');
                 
-                if (activeOldBlobUrl) {
+                const oldSource = activeOldFileObj || activeOldBlobUrl;
+                if (oldSource) {
                     currentActiveTab = 'Old';
                     document.getElementById('instructionOldMap').classList.remove('hidden');
-                    const res = await renderPdfToCanvas(activeOldBlobUrl, activeOldPageNum);
-                    pdfImageOld = res.imgData;
-                    dimOld = { w: res.w, h: res.h };
-                    drawQuadUI();
+                    const res = await renderMapSourceToCanvas(oldSource, activeOldPageNum);
+                    if (res && res.imgData) {
+                        pdfImageOld = res.imgData;
+                        dimOld = { w: res.w, h: res.h };
+                        renderNewMapInsetThumbnail();
+                        drawQuadUI();
+                    }
                 } else {
-                    document.getElementById('calibMapWrapper').classList.add('hidden');
                     placeholderText.innerHTML = `
-                        <p class="text-lg font-bold opacity-80 text-[#4c5c68]">No Assessor Map Selected</p>
-                        <p class="text-sm text-slate-500 font-medium">Choose or Upload a New Map From The Left Sidebar</p>
+                        <p class="text-lg font-bold opacity-80 text-[#4c5c68]">New Map Selection Confirmed</p>
+                        <p class="text-sm text-slate-500 font-medium">Please Upload an Old Map from the Left Sidebar to Continue</p>
                     `;
                     placeholderText.classList.remove('hidden');
+                    document.getElementById('calibMapWrapper').classList.add('hidden');
                 }
             } else {
+                insetPreviewCard.classList.add('hidden');
                 processFinalOverlay();
             }
         });
@@ -805,12 +1344,16 @@
             poly.setAttribute('stroke-width', '6');
         }
 
-        const handleRestartSetup = () => window.location.reload();
+        const handleRestartSetup = () => {
+            applyNewMapChoiceLock('reset');
+            window.location.reload();
+        };
+
         document.getElementById('resetSetupBtnCalib')?.addEventListener('click', handleRestartSetup);
         document.getElementById('resetSetupBtnOverlay')?.addEventListener('click', handleRestartSetup);
 
-        // --- COMPOSITE OVERLAY PROCESSING ---
         function processFinalOverlay() {
+            insetPreviewCard.classList.add('hidden');
             document.getElementById('sidebarStageCalib').classList.add('hidden');
             document.getElementById('sidebarStageOverlay').classList.remove('hidden');
 
@@ -820,7 +1363,7 @@
             alignAndComposite();
         }
 
-function getExtrapolatedNewPoint(x, y, pOld, pNew) {
+        function getExtrapolatedNewPoint(x, y, pOld, pNew) {
             const wOldTop = pOld[1].x - pOld[0].x || 1;
             const wOldBot = pOld[2].x - pOld[3].x || 1;
             const hOldLeft = pOld[3].y - pOld[0].y || 1;
@@ -848,7 +1391,6 @@ function getExtrapolatedNewPoint(x, y, pOld, pNew) {
             let cropW, cropH, srcNew, srcOld;
 
             if (isFullViewMode) {
-                // In Full View Mode: Extrapolate full sheet dimensions using control points mapping
                 cropW = dimOld.w;
                 cropH = dimOld.h;
 
@@ -866,7 +1408,6 @@ function getExtrapolatedNewPoint(x, y, pOld, pNew) {
                     getExtrapolatedNewPoint(0, dimOld.h, pOldPx, pNewPx)
                 ];
             } else {
-                // In Cropped Mode (Default): Align and crop strictly to bounding control box
                 const widthTop = Math.hypot(pOldPx[1].x - pOldPx[0].x, pOldPx[1].y - pOldPx[0].y);
                 const widthBottom = Math.hypot(pOldPx[2].x - pOldPx[3].x, pOldPx[2].y - pOldPx[3].y);
                 cropW = Math.round(Math.max(widthTop, widthBottom));
@@ -879,13 +1420,11 @@ function getExtrapolatedNewPoint(x, y, pOld, pNew) {
                 srcNew = pNewPx;
             }
 
-            // Primary Composite Canvases
             const cOld = document.getElementById('canvasCropOld');
             const cNew = document.getElementById('canvasCropNew');
             cOld.width = cropW; cOld.height = cropH;
             cNew.width = cropW; cNew.height = cropH;
 
-            // Side-by-side Dual Canvases
             const cSideOld = document.getElementById('canvasSideOld');
             const cSideNew = document.getElementById('canvasSideNew');
             cSideOld.width = cropW; cSideOld.height = cropH;
@@ -924,11 +1463,14 @@ function getExtrapolatedNewPoint(x, y, pOld, pNew) {
 
             for (let y = 0; y < destH; y++) {
                 const v = y / destH;
+                const v1 = 1 - v;
+
                 for (let x = 0; x < destW; x++) {
                     const u = x / destW;
+                    const u1 = 1 - u;
 
-                    const srcX = (1 - u) * (1 - v) * quad[0].x + u * (1 - v) * quad[1].x + u * v * quad[2].x + (1 - u) * v * quad[3].x;
-                    const srcY = (1 - u) * (1 - v) * quad[0].y + u * (1 - v) * quad[1].y + u * v * quad[2].y + (1 - u) * v * quad[3].y;
+                    const srcX = u1 * v1 * quad[0].x + u * v1 * quad[1].x + u * v * quad[2].x + u1 * v * quad[3].x;
+                    const srcY = u1 * v1 * quad[0].y + u * v1 * quad[1].y + u * v * quad[2].y + u1 * v * quad[3].y;
 
                     const sx = Math.floor(srcX);
                     const sy = Math.floor(srcY);
@@ -937,7 +1479,7 @@ function getExtrapolatedNewPoint(x, y, pOld, pNew) {
                         const srcIdx = (sy * srcW + sx) * 4;
                         const dstIdx = (y * destW + x) * 4;
 
-                        dstData[dstIdx] = srcData[srcIdx];
+                        dstData[dstIdx]     = srcData[srcIdx];
                         dstData[dstIdx + 1] = srcData[srcIdx + 1];
                         dstData[dstIdx + 2] = srcData[srcIdx + 2];
                         dstData[dstIdx + 3] = srcData[srcIdx + 3];
@@ -947,13 +1489,11 @@ function getExtrapolatedNewPoint(x, y, pOld, pNew) {
             targetCtx.putImageData(destImg, 0, 0);
         }
 
-        // --- COMPARISON SLIDERS (OPACITY & TRANSPARENCY) ---
         const cOld = document.getElementById('canvasCropOld');
         const cNew = document.getElementById('canvasCropNew');
         const cSideOld = document.getElementById('canvasSideOld');
         const cSideNew = document.getElementById('canvasSideNew');
 
-        // Opacity Tool Sliders
         document.getElementById('sliderOldOpacity')?.addEventListener('input', (e) => {
             const val = e.target.value;
             cOld.style.opacity = val / 100;
@@ -966,7 +1506,6 @@ function getExtrapolatedNewPoint(x, y, pOld, pNew) {
             document.getElementById('valNewOpacity').innerText = `${val}%`;
         });
 
-        // Transparency Tool Sliders
         document.getElementById('sliderOldTransparency')?.addEventListener('input', (e) => {
             const val = e.target.value;
             cOld.style.opacity = (100 - val) / 100;
@@ -979,7 +1518,6 @@ function getExtrapolatedNewPoint(x, y, pOld, pNew) {
             document.getElementById('valNewTransparency').innerText = `${val}%`;
         });
 
-        // --- COMPARISON TOOL SWITCHER ---
         const modeBtnOpacity = document.getElementById('modeBtnOpacity');
         const modeBtnTransparency = document.getElementById('modeBtnTransparency');
         const modeBtnSwipe = document.getElementById('modeBtnSwipe');
@@ -1013,8 +1551,8 @@ function getExtrapolatedNewPoint(x, y, pOld, pNew) {
             panelOpacityControl.classList.add('hidden');
             panelTransparencyControl.classList.add('hidden');
 
-            const displayW = parseFloat(cOld.style.width);
-            const displayH = parseFloat(cOld.style.height);
+            const displayW = parseFloat(cOld.style.width) || overlayWrapper.offsetWidth;
+            const displayH = parseFloat(cOld.style.height) || overlayWrapper.offsetHeight;
 
             if (mode === 'opacity' || mode === 'transparency' || mode === 'swipe') {
                 panzoomContainer.classList.remove('hidden');
@@ -1062,7 +1600,6 @@ function getExtrapolatedNewPoint(x, y, pOld, pNew) {
             }
         }
 
-        // --- STABLE MASTER-SLAVE DUAL LINKED PANZOOM ENGINE ---
         let activeHoveredPane = null;
 
         function setupLinkedSideBySidePanzoom() {
@@ -1074,7 +1611,7 @@ function getExtrapolatedNewPoint(x, y, pOld, pNew) {
             if (pzSideOld) pzSideOld.destroy();
             if (pzSideNew) pzSideNew.destroy();
 
-            const aspect = cOld.width / cOld.height;
+            const aspect = (cOld.width || 1) / (cOld.height || 1);
             const targetH = Math.min(vpOld.offsetHeight * 0.85, 600);
             const targetW = targetH * aspect;
 
@@ -1121,7 +1658,6 @@ function getExtrapolatedNewPoint(x, y, pOld, pNew) {
             vpNew.onwheel = (e) => handleSmoothWheel(e, pzSideNew, pzSideOld);
         }
 
-        // --- SWIPE HANDLE DRAG ---
         if (swipeHandle) {
             swipeHandle.addEventListener('pointerdown', (e) => {
                 if (activeComparisonMode !== 'swipe') return;
@@ -1154,11 +1690,12 @@ function getExtrapolatedNewPoint(x, y, pOld, pNew) {
             swipeHandle.style.left = `${pct}%`;
         }
 
-        // --- REDO DRAWINGS BUTTON HANDLER ---
-        const handleRedoDrawings = () => {
+        const handleRedoDrawings = async () => {
             pointsOld = [];
             pointsNew = [];
             currentActiveTab = 'New';
+
+            insetPreviewCard.classList.add('hidden');
 
             document.getElementById('sidebarStageOverlay').classList.add('hidden');
             document.getElementById('sidebarStageCalib').classList.remove('hidden');
@@ -1166,19 +1703,22 @@ function getExtrapolatedNewPoint(x, y, pOld, pNew) {
             document.getElementById('phaseOldMap').classList.add('hidden');
             document.getElementById('phaseNewMap').classList.remove('hidden');
             document.getElementById('instructionNewMap').classList.remove('hidden');
+            document.getElementById('instructionOldMap').classList.add('hidden');
 
             document.getElementById('overlayWrapper').classList.add('hidden');
             document.getElementById('sideBySideContainer').classList.add('hidden');
-            document.getElementById('panzoomContainer').classList.remove('hidden');
-            document.getElementById('calibMapWrapper').classList.remove('hidden');
 
-            const selectVal = document.getElementById('selectNewMap').value;
-            const mapObj = selectVal ? mapsRegistry.find(m => m.id == selectVal.split('_page_')[0]) : null;
-            const newMapUrl = activeNewBlobUrl || (mapObj ? mapObj.file_url : null);
+            const labelText = document.getElementById('customSelectLabel')?.innerText || '';
+            const newSource = activeNewFileObj || activeNewBlobUrl || (mapsRegistry.find(m => m.map_name.replace(/\.(pdf|tif|tiff)$/i, '') === labelText)?.file_url);
 
-            if (newMapUrl) {
-                renderPdfToCanvas(newMapUrl, activeNewPageNum);
+            if (newSource) {
+                const res = await renderMapSourceToCanvas(newSource, activeNewPageNum);
+                if (res) {
+                    pdfImageNew = res.imgData;
+                    dimNew = { w: res.w, h: res.h };
+                }
             }
+
             drawQuadUI();
         };
 

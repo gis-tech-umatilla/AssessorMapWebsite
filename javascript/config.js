@@ -39,3 +39,69 @@ let realtimeChannel = null;
 let isSortingUpdateInProgress = false;
 let sidebarScrollPosition = 0;
 let lastClickTime = 0;
+
+// Centralized Single-Color Palette Mapping
+const USER_COLORS = {
+    'mckenzie.bowey': '#e83a3a',
+    'ian.freel': '#249fb3',
+    'aspen.buckingham': '#86ad32',
+    'matthew.lynch': '#f7a414'
+};
+
+const FALLBACK_USER_COLORS = [
+    '#4f46e5', // Indigo
+    '#d97706', // Amber
+    '#9333ea', // Purple
+    '#0891b2', // Cyan
+    '#c026d3'  // Fuchsia
+];
+
+/**
+ * Returns the primary single hex color for a user.
+ */
+function getUserHexColor(prefix) {
+    if (!prefix) return '#94a3b8'; // Default Slate-400
+    const key = prefix.toLowerCase();
+    
+    if (USER_COLORS[key]) {
+        return USER_COLORS[key];
+    }
+    
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) {
+        hash = key.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return FALLBACK_USER_COLORS[Math.abs(hash) % FALLBACK_USER_COLORS.length];
+}
+
+/**
+ * Returns element style classes where bg and border match the primary user color, with white text.
+ */
+function getUserColorStyle(prefix) {
+    const hex = getUserHexColor(prefix);
+    return { 
+        bg: `bg-[${hex}]`, 
+        border: `border-[${hex}]`, 
+        text: 'text-white',
+        hex: hex 
+    };
+}
+
+/**
+ * Returns Tailwind class for text colored with the user's primary color.
+ */
+function getUserTextColorClass(prefix) {
+    if (!prefix) return 'text-slate-300';
+    const hex = getUserHexColor(prefix);
+    return `text-[${hex}]`;
+}
+
+/**
+ * Formats user email prefix to display first name (e.g. ian.freel -> Ian).
+ */
+function getFormattedFirstName(prefix) {
+    if (!prefix) return 'Unassigned';
+    const firstNameRaw = prefix.split('.')[0].toLowerCase();
+    if (firstNameRaw === 'mckenzie') return 'McKenzie';
+    return firstNameRaw.charAt(0).toUpperCase() + firstNameRaw.slice(1);
+}

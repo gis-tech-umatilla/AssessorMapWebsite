@@ -48,21 +48,23 @@
     </header>
 
     <div class="flex-1 flex overflow-hidden w-full relative">
-        <aside class="w-72 bg-[#4c5c68] text-slate-100 flex flex-col h-full border-r border-black/20 shadow-xl z-30">
-            <div class="p-4 border-b border-black/20 bg-black/10 flex flex-col space-y-2">
+        <!-- LEFT SIDEBAR: LOCKED TO EXACTLY 340px -->
+        <aside class="w-[340px] min-w-[340px] max-w-[340px] bg-[#4c5c68] text-slate-100 flex flex-col h-full border-r border-black/20 shadow-xl z-30 shrink-0">
+            <div class="p-3.5 border-b border-black/20 bg-black/10 flex flex-col space-y-2">
                 <span class="text-xs font-bold text-[#b3a98f] uppercase tracking-wider">Upload PDF</span>
                 <input type="file" id="pdfUpload" accept="application/pdf" class="w-full text-xs text-slate-200 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-[#1985a1] file:text-white hover:file:bg-[#1985a1]/80 cursor-pointer bg-black/10 p-1.5 rounded border border-black/10"/>
             </div>
             
-            <div class="p-4 border-b border-black/20 bg-black/10">
+            <div class="p-3.5 border-b border-black/20 bg-black/10">
                 <h2 class="font-semibold text-slate-200 text-sm tracking-wider uppercase">ASSESSOR MAPS</h2>
             </div>
-            <div id="mapList" class="flex-1 overflow-y-auto p-2 space-y-1">
+            <div id="mapList" class="flex-1 overflow-y-auto p-2.5 space-y-2">
                 <p class="text-xs text-slate-300/60 italic p-2">Loading maps database...</p>
             </div>
         </aside>
 
-        <div class="flex-1 relative bg-slate-300 overflow-hidden flex items-center justify-center" id="mapViewport">
+        <!-- CENTER VIEWPORT -->
+        <div class="flex-1 relative bg-slate-300 overflow-hidden flex items-center justify-center min-w-0" id="mapViewport">
             <div class="absolute top-4 left-4 z-40 bg-[#4c5c68]/95 backdrop-blur text-white rounded-xl shadow-2xl p-2 flex flex-col space-y-1.5 border border-white/10 hidden" id="drawingToolbar">
                 <span class="text-[10px] text-[#b3a98f] font-bold uppercase tracking-wider text-center border-b border-black/20 pb-1 mb-1">Tools</span>
                 <button id="tool-view" class="tool-btn px-3 py-1.5 bg-[#1985a1] text-white text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition shadow-md"><span>View Map</span></button>
@@ -106,19 +108,20 @@
             </div>
         </div>
 
-        <aside class="w-85 bg-white border-l border-gray-200 flex flex-col h-full shadow-2xl z-30">
-            <div class="p-3 border-b border-gray-200 bg-gray-50 flex flex-col space-y-2">
+        <!-- RIGHT SIDEBAR: LOCKED TO EXACTLY 340px (MATCHING LEFT SIDEBAR) -->
+        <aside class="w-[340px] min-w-[340px] max-w-[340px] bg-white border-l border-gray-200 flex flex-col h-full shadow-2xl z-30 shrink-0">
+            <div class="p-3.5 border-b border-gray-200 bg-gray-50 flex flex-col space-y-2">
                 <h2 class="font-semibold text-gray-700 text-sm">Issue List</h2>
-                <div class="flex space-x-1.5">
-                    <button id="toggleVisibility" class="flex-1 py-1 text-[11px] font-semibold bg-red-200 text-red-700 rounded hover:bg-red-300 transition flex items-center justify-center space-x-1 cursor-pointer">
+                <div class="flex space-x-2">
+                    <button id="toggleVisibility" class="flex-1 py-1.5 text-xs font-semibold bg-red-200 text-red-700 rounded-md hover:bg-red-300 transition flex items-center justify-center space-x-1 cursor-pointer">
                         <span id="visibilityText">Hide Open</span>
                     </button>
-                    <button id="toggleFixedVisibility" class="flex-1 py-1 text-[11px] font-semibold bg-emerald-100 text-emerald-800 rounded hover:bg-emerald-200 transition flex items-center justify-center space-x-1 cursor-pointer">
+                    <button id="toggleFixedVisibility" class="flex-1 py-1.5 text-xs font-semibold bg-emerald-100 text-emerald-800 rounded-md hover:bg-emerald-200 transition flex items-center justify-center space-x-1 cursor-pointer">
                         <span id="fixedVisibilityText">Hide Fixed</span>
                     </button>
                 </div>
             </div>
-            <div id="sidebarList" class="flex-1 overflow-y-auto p-4 space-y-3">
+            <div id="sidebarList" class="flex-1 overflow-y-auto p-3.5 space-y-3">
                 <p class="text-sm text-gray-400 italic">Select a map to view flagged errors.</p>
             </div>
         </aside>
@@ -143,14 +146,14 @@
         </div>
     </div>
 
-    <!-- CUSTOM CONFIRM MODAL (MATCHING COMPARISON TOOL DIALOG) -->
+    <!-- CUSTOM CONFIRM MODAL -->
     <div id="customConfirmModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-[10000] hidden">
-        <div class="bg-slate-900/95 backdrop-blur-md text-white p-5 rounded-2xl shadow-2xl border border-slate-700 max-w-xs w-full text-center flex flex-col space-y-4">
-            <div class="space-y-1">
-                <h3 id="modalTitle" class="text-sm font-bold text-slate-100">Confirm Action</h3>
-                <p id="modalMessage" class="text-xs text-slate-300"></p>
+        <div class="bg-slate-900/95 backdrop-blur-md text-white p-6 rounded-2xl shadow-2xl border border-slate-700 max-w-sm w-full text-center flex flex-col space-y-4 mx-4">
+            <div class="space-y-2">
+                <h3 id="modalTitle" class="text-base font-extrabold text-slate-100 tracking-tight">Confirm Action</h3>
+                <p id="modalMessage" class="text-xs text-slate-300 whitespace-pre-line leading-relaxed text-center"></p>
             </div>
-            <div class="flex space-x-2 pt-1">
+            <div class="flex space-x-2.5 pt-2">
                 <button id="modalCancelBtn" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-lg transition cursor-pointer">Cancel</button>
                 <button id="modalConfirmBtn" class="flex-1 py-2 bg-[#1985a1] hover:bg-[#1985a1]/80 text-white text-xs font-bold rounded-lg transition cursor-pointer shadow-md">Confirm</button>
             </div>

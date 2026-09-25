@@ -132,3 +132,27 @@
 #isolatedPrintContainer {
     display: none;
 }
+
+/* Custom Sleek Scrollbars for Modern Browsers */
+#mapList, #sidebarList, body {
+    scrollbar-width: thin; /* Firefox */
+}
+
+/* Sleek Custom Scrollbar for Left Sidebar (#mapList) */
+#mapList {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+#mapList::-webkit-scrollbar {
+    width: 6px;
+}
+#mapList::-webkit-scrollbar-track {
+    background: transparent;
+}
+#mapList::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 9999px;
+}
+#mapList::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.45);
+}

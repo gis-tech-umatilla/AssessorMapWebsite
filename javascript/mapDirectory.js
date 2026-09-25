@@ -5,6 +5,14 @@ const mapList = document.getElementById('mapList');
 let targetGroupIdOverride = null;
 let isTargetOverrideTriggered = false;
 let autoEditGroupId = null; // Tracks group ID that should auto-open in rename mode
+let mapListScrollPosition = 0; // Scroll position tracker for left sidebar
+
+// Continuous scroll listener for left sidebar
+if (mapList) {
+    mapList.addEventListener('scroll', () => {
+        mapListScrollPosition = mapList.scrollTop;
+    });
+}
 
 pdfUpload.addEventListener('click', () => {
     if (!isTargetOverrideTriggered) {
@@ -20,7 +28,7 @@ function startEditingGroupName(group, groupHeader, titleTextSpan) {
     const renameInput = document.createElement('input');
     renameInput.type = 'text';
     renameInput.value = group.group_name;
-    renameInput.className = "flex-1 bg-slate-800 border border-blue-500 rounded px-1.5 py-0.5 text-xs text-white font-bold tracking-wide outline-none focus:ring-1 focus:ring-blue-400 select-text";
+    renameInput.className = "flex-1 bg-slate-800 border border-blue-500 rounded-md px-2 py-1 text-xs text-white font-bold tracking-wide outline-none focus:ring-1 focus:ring-blue-400 select-text";
 
     groupHeader.replaceChild(renameInput, titleTextSpan);
 
@@ -102,64 +110,6 @@ function showCustomConfirm(title, message, confirmText = "Confirm", cancelText =
         confirmBtn.addEventListener('click', handleConfirm);
         cancelBtn.addEventListener('click', handleCancel);
     });
-}
-
-function getUserColorStyle(prefix) {
-    if (!prefix) return { bg: 'bg-slate-400', border: 'border-slate-500', text: 'text-white' };
-    
-    if (prefix === 'mckenzie.bowey') {
-        return { bg: 'bg-[#e83a3a]', border: 'border-[#d12e2e]', text: 'text-white' };
-    }
-    if (prefix === 'ian.freel') {
-        return { bg: 'bg-[#249fb3]', border: 'border-[#1b8294]', text: 'text-white' };
-    }
-    if (prefix === 'aspen.buckingham') {
-        return { bg: 'bg-[#86ad32]', border: 'border-[#86ad32]', text: 'text-white' };
-    }
-    
-    let hash = 0;
-    for (let i = 0; i < prefix.length; i++) {
-        hash = prefix.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    
-    const tailwindPalettes = [
-        { bg: 'bg-indigo-600', border: 'border-indigo-700', text: 'text-white' },
-        { bg: 'bg-amber-600', border: 'border-amber-700', text: 'text-white' },
-        { bg: 'bg-purple-600', border: 'border-purple-700', text: 'text-white' },
-        { bg: 'bg-cyan-600', border: 'border-cyan-700', text: 'text-white' },
-        { bg: 'bg-fuchsia-600', border: 'border-fuchsia-700', text: 'text-white' }
-    ];
-    
-    return tailwindPalettes[Math.abs(hash) % tailwindPalettes.length];
-}
-
-function getUserTextColorClass(prefix) {
-    if (!prefix) return 'text-slate-300';
-    if (prefix === 'mckenzie.bowey') return 'text-[#e83a3a]';
-    if (prefix === 'ian.freel') return 'text-[#249fb3]';
-    if (prefix === 'aspen.buckingham') return 'text-[#86ad32]';
-    
-    let hash = 0;
-    for (let i = 0; i < prefix.length; i++) {
-        hash = prefix.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    
-    const tailwindTextColors = [
-        'text-indigo-400',
-        'text-amber-400',
-        'text-purple-400',
-        'text-cyan-400',
-        'text-fuchsia-400'
-    ];
-    
-    return tailwindTextColors[Math.abs(hash) % tailwindTextColors.length];
-}
-
-function getFormattedFirstName(prefix) {
-    if (!prefix) return 'Unassigned';
-    const firstNameRaw = prefix.split('.')[0].toLowerCase();
-    if (firstNameRaw === 'mckenzie') return 'McKenzie';
-    return firstNameRaw.charAt(0).toUpperCase() + firstNameRaw.slice(1);
 }
 
 // --- PDF UPLOAD WITH OWNER-PREFIXED GROUPING ---
@@ -287,6 +237,10 @@ pdfUpload.addEventListener('change', async (e) => {
 async function fetchMapsDirectory() {
     if (isSortingUpdateInProgress) return;
 
+    if (mapList && mapList.scrollTop > 0) {
+        mapListScrollPosition = mapList.scrollTop;
+    }
+
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) return;
     
@@ -325,7 +279,17 @@ async function fetchMapsDirectory() {
         groupsByCreator[creator].push(group);
     });
 
-    Object.keys(groupsByCreator).forEach(creatorPrefix => {
+    // --- SORT CREATORS: CURRENT USER FIRST, OTHERS ALPHABETICALLY BY FIRST NAME ---
+    const sortedCreatorPrefixes = Object.keys(groupsByCreator).sort((a, b) => {
+        if (a === currentUserPrefix) return -1;
+        if (b === currentUserPrefix) return 1;
+        
+        const nameA = getFormattedFirstName(a);
+        const nameB = getFormattedFirstName(b);
+        return nameA.localeCompare(nameB);
+    });
+
+    sortedCreatorPrefixes.forEach(creatorPrefix => {
         const creatorGroups = groupsByCreator[creatorPrefix];
         if (creatorGroups.length === 0) return;
 
@@ -338,10 +302,10 @@ async function fetchMapsDirectory() {
 
         // Outer Super-Group Header Bar: #36424a
         const creatorHeader = document.createElement('div');
-        creatorHeader.className = "bg-[#36424a] px-3 py-2 flex items-center justify-between border-b border-black/20 select-none";
+        creatorHeader.className = "bg-[#36424a] px-3.5 py-2.5 flex items-center justify-between border-b border-black/20 select-none";
         
         const creatorTitle = document.createElement('h3');
-        creatorTitle.className = `text-sm font-extrabold tracking-wider ${textColorClass}`;
+        creatorTitle.className = `text-base font-extrabold tracking-wider ${textColorClass}`;
         creatorTitle.innerText = creatorName;
 
         creatorHeader.appendChild(creatorTitle);
@@ -349,7 +313,7 @@ async function fetchMapsDirectory() {
 
         // Outer Super-Group Body Container
         const creatorBody = document.createElement('div');
-        creatorBody.className = "p-2.5 flex flex-col space-y-2.5 sortable-folder-list";
+        creatorBody.className = "p-3 flex flex-col space-y-3 sortable-folder-list";
         creatorBody.setAttribute('data-creator', creatorPrefix);
 
         // Inner Folders
@@ -364,11 +328,11 @@ async function fetchMapsDirectory() {
             
             // Inner Folder Header: #36424a
             const groupHeader = document.createElement('div');
-            groupHeader.className = "w-full flex justify-between items-center bg-[#36424a] p-2 text-xs font-bold text-slate-200 border-b border-black/20 select-none";
+            groupHeader.className = "w-full flex justify-between items-center bg-[#36424a] px-3 py-2 text-sm font-bold text-slate-200 border-b border-black/20 select-none";
             
             if (creatorPrefix === currentUserPrefix) {
                 const folderGrip = document.createElement('span');
-                folderGrip.className = "sortable-folder-handle cursor-grab text-slate-400 hover:text-slate-200 text-xs font-bold tracking-tighter select-none shrink-0 pr-2";
+                folderGrip.className = "sortable-folder-handle cursor-grab text-slate-400 hover:text-slate-200 text-sm font-bold tracking-tighter select-none shrink-0 pr-2";
                 folderGrip.innerHTML = "☰";
                 groupHeader.appendChild(folderGrip);
             }
@@ -380,7 +344,7 @@ async function fetchMapsDirectory() {
 
             if (creatorPrefix === currentUserPrefix) {
                 const delGroupBtn = document.createElement('button');
-                delGroupBtn.className = "text-[10px] bg-red-950/50 hover:bg-red-700/80 text-red-300 hover:text-white px-1.5 py-0.5 rounded font-bold transition shrink-0 cursor-pointer select-none border border-red-500/20";
+                delGroupBtn.className = "text-xs bg-[#3c2b30] hover:bg-[#a50d15] text-[#ff6467] hover:text-white px-2 py-0.5 rounded font-bold transition shrink-0 cursor-pointer select-none border border-[#ff6467]/20";
                 delGroupBtn.innerText = "Delete";
                 
                 delGroupBtn.onclick = async (e) => {
@@ -450,7 +414,7 @@ async function fetchMapsDirectory() {
             groupContainer.appendChild(groupHeader);
 
             const childrenContentWrapper = document.createElement('div');
-            childrenContentWrapper.className = "p-1 space-y-1 block min-h-[35px] sortable-map-list";
+            childrenContentWrapper.className = "p-1.5 space-y-1 block min-h-[35px] sortable-map-list";
             childrenContentWrapper.setAttribute('data-group-id', group.id);
             childrenContentWrapper.setAttribute('data-creator', creatorPrefix);
 
@@ -467,7 +431,7 @@ async function fetchMapsDirectory() {
             groupMaps.forEach((map) => {
                 const mapRow = document.createElement('div');
                 // Active Map: #1985a1 | Hover: #3d4b54
-                mapRow.className = `group flex items-center p-1.5 rounded-md transition space-x-2 ${
+                mapRow.className = `group flex items-center p-2 rounded-md transition space-x-2.5 ${
                     currentMapId === map.id 
                         ? 'bg-[#1985a1] text-white shadow-md' 
                         : 'text-slate-200 hover:bg-[#3d4b54]'
@@ -487,7 +451,7 @@ async function fetchMapsDirectory() {
 
                 const cleanMapName = map.map_name.replace(/\.pdf$/i, '');
                 const nameLabelSpan = document.createElement('span');
-                nameLabelSpan.className = 'text-left text-xs font-medium truncate block min-w-0 pl-1 pr-2 pointer-events-none';
+                nameLabelSpan.className = 'text-left text-xs font-semibold truncate block min-w-0 pl-1 pr-2 pointer-events-none';
                 nameLabelSpan.innerText = `📄 ${cleanMapName}`;
                 rowContentLayout.appendChild(nameLabelSpan);
 
@@ -502,12 +466,16 @@ async function fetchMapsDirectory() {
                     if (b === 'mckenzie.bowey') return 1;
                     if (a === 'ian.freel') return -1;
                     if (b === 'ian.freel') return 1;
+                    if (a === 'matthew.lynch') return -1;
+                    if (b === 'matthew.lynch') return 1;
+                    if (a === 'aspen.buckingham') return -1;
+                    if (b === 'aspen.buckingham') return 1;
                     return a.localeCompare(b);
                 });
 
                 sortedReviewers.forEach((prefix) => {
                     const badge = document.createElement('button');
-                    badge.className = "w-5 h-5 rounded-full border flex items-center justify-center text-[9px] font-bold tracking-widest shrink-0 cursor-pointer transition-all duration-150 relative saturate-85";
+                    badge.className = "w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-bold tracking-widest shrink-0 cursor-pointer transition-all duration-150 relative saturate-85";
                     
                     const nameParts = prefix.split('.');
                     const initials = nameParts.length >= 2 
@@ -543,7 +511,7 @@ async function fetchMapsDirectory() {
 
                 if (!hasReviewed) {
                     const actionBtn = document.createElement('button');
-                    actionBtn.className = "w-5 h-5 rounded-full border border-dashed border-slate-300/60 bg-transparent hover:border-white hover:bg-white/10 flex items-center justify-center shrink-0 cursor-pointer transition-all duration-150";
+                    actionBtn.className = "w-6 h-6 rounded-full border border-dashed border-slate-300/60 bg-transparent hover:border-white hover:bg-white/10 flex items-center justify-center shrink-0 cursor-pointer transition-all duration-150";
                     actionBtn.innerHTML = "&nbsp;";
                     actionBtn.title = "Mark as Reviewed";
 
@@ -563,7 +531,7 @@ async function fetchMapsDirectory() {
 
                 if (creatorPrefix === currentUserPrefix) {
                     const delBtn = document.createElement('button');
-                    delBtn.className = `opacity-0 group-hover:opacity-100 px-1 py-0.5 bg-red-950/40 hover:bg-red-700/80 rounded text-red-300 hover:text-white transition text-[9px] cursor-pointer font-bold shrink-0 ml-1 border border-red-500/20`;
+                    delBtn.className = `opacity-0 group-hover:opacity-100 px-1.5 py-0.5 bg-[#3c2b30] hover:bg-[#a50d15] rounded text-[#ff6467] hover:text-white transition text-[10px] cursor-pointer font-bold shrink-0 ml-1 border border-[#ff6467]/20`;
                     delBtn.innerHTML = 'Delete';
                     
                     delBtn.onclick = async (e) => {
@@ -624,7 +592,7 @@ async function fetchMapsDirectory() {
             // RENDER "UPLOAD" BUTTON IF GROUP HAS FEWER THAN 5 MAPS (OWNER ONLY)
             if (groupMaps.length < 5 && creatorPrefix === currentUserPrefix) {
                 const emptyUploadBtn = document.createElement('button');
-                emptyUploadBtn.className = "w-full py-1.5 px-2 bg-[#44535d] hover:bg-[#3d4b54] text-slate-300 hover:text-white text-xs font-semibold rounded border border-dashed border-white/20 transition cursor-pointer flex items-center justify-center my-0.5";
+                emptyUploadBtn.className = "w-full py-2 px-2.5 bg-[#44535d] hover:bg-[#3d4b54] text-slate-300 hover:text-white text-xs font-semibold rounded-md border border-dashed border-white/20 transition cursor-pointer flex items-center justify-center my-1 shadow-xs";
                 emptyUploadBtn.innerText = "Upload";
                 
                 emptyUploadBtn.onclick = (e) => {
@@ -644,12 +612,12 @@ async function fetchMapsDirectory() {
         // --- RENDER "+ GROUP" BUTTON INSIDE THE LOGGED-IN USER'S SUPER-GROUP ---
         if (creatorPrefix === currentUserPrefix) {
             const btnWrapper = document.createElement('div');
-            btnWrapper.className = "flex justify-center w-full pt-1";
+            btnWrapper.className = "flex justify-center w-full pt-1.5 pb-0.5";
 
             const createGroupBtn = document.createElement('button');
             createGroupBtn.id = 'createNewGroupBtn';
-            createGroupBtn.className = "inline-flex items-center space-x-1 px-3 py-1 rounded-md bg-[#4b5f70] hover:bg-[#3a4c59] border border-black/20 text-slate-100 text-xs font-semibold transition cursor-pointer shadow-xs";
-            createGroupBtn.innerHTML = `<span class="text-sm font-bold leading-none">+</span><span>Group</span>`;
+            createGroupBtn.className = "inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-md bg-[#4b5f70] hover:bg-[#3a4c59] border border-black/20 text-slate-100 text-xs font-bold transition cursor-pointer shadow-xs";
+            createGroupBtn.innerHTML = `<span class="text-sm font-extrabold leading-none">+</span><span>Group</span>`;
 
             createGroupBtn.onclick = async () => {
                 const userGroups = rawGroups.filter(g => (g.created_by || '').toLowerCase() === currentUserPrefix.toLowerCase());
@@ -709,6 +677,11 @@ async function fetchMapsDirectory() {
     });
     
     initSortableDragAndDrop(currentUserPrefix);
+
+    // Restore saved scroll position for left sidebar
+    if (mapList) {
+        mapList.scrollTop = mapListScrollPosition;
+    }
 }
 
 // --- RESTRICTED DRAG AND DROP (GROUPS & MAPS) ---

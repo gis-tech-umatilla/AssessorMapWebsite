@@ -1,0 +1,134 @@
+.error-dot { 
+    transform: translate(-50%, -50%);
+    transform-origin: center center;
+    width: 14px !important;
+    height: 14px !important;
+    font-size: 8px !important;
+}
+
+.map-text-annotation {
+    transform: translate(0%, -50%);
+    transform-origin: left center;
+    font-size: 6px !important;
+    height: 14px !important;
+}
+
+.map-text-annotation span {
+    font-size: 8px !important;
+}
+
+/* Force butter-smooth panning and zoom adjustments across layout refreshes */
+#panzoomContainer {
+    transition: transform 0.15s cubic-bezier(0.25, 1, 0.5, 1) !important;
+    will-change: transform;
+}
+
+@media print {
+    @page {
+        size: letter landscape;
+        margin: 0.4in 0.3in 0.4in 0.3in;
+    }
+
+    #authGate, 
+    header, 
+    aside:first-of-type, 
+    #drawingToolbar, 
+    #zoomControls, 
+    aside:last-of-type, 
+    #floatingPopover {
+        display: none !important;
+    }
+
+    body, html {
+        height: auto !important;
+        overflow: visible !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        font-family: Arial, sans-serif !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    .flex-1.flex, #mapViewport {
+        display: none !important;
+    }
+
+    #isolatedPrintContainer {
+        display: block !important;
+        width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
+        position: relative !important;
+    }
+
+    .print-map-capture-wrapper {
+        display: block !important;
+        float: left !important;
+        width: 63% !important;
+        height: 82vh !important;
+        margin-right: 2% !important;
+        margin-bottom: 20px !important;
+        box-sizing: border-box !important;
+    }
+
+    .print-map-capture-wrapper canvas {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: contain !important;
+        border: 1px solid #94a3b8 !important;
+    }
+
+    .print-section-title {
+        font-size: 14px !important;
+        font-weight: bold !important;
+        color: #000000 !important;
+        text-transform: uppercase !important;
+        border-bottom: 2px solid #000000 !important;
+        padding-bottom: 4px !important;
+        margin-bottom: 10px !important;
+        width: 100% !important;
+        break-after: avoid !important;
+    }
+
+    .print-columns-layout {
+        display: block !important;
+        width: 100% !important;
+        column-width: 200px !important;
+        column-gap: 15px !important;
+        column-fill: auto !important;
+    }
+
+    .print-issue-row {
+        background: #ffffff !important;
+        border: 1px solid #475569 !important;
+        border-radius: 4px !important;
+        padding: 6px 10px !important;
+        margin-bottom: 8px !important;
+        box-sizing: border-box !important;
+        display: inline-block !important;
+        width: 100% !important;
+        break-inside: avoid !important;
+    }
+
+    .print-meta-label {
+        font-size: 11px !important;
+        font-weight: bold !important;
+        color: #000000 !important;
+        border-bottom: 1px dashed #cbd5e1 !important;
+        padding-bottom: 2px !important;
+        margin-bottom: 4px !important;
+    }
+
+    .print-description-text {
+        font-size: 10px !important;
+        font-weight: normal !important;
+        color: #000000 !important;
+        line-height: 1.3 !important;
+        word-wrap: break-word !important;
+        white-space: pre-wrap !important;
+    }
+}
+
+#isolatedPrintContainer {
+    display: none;
+}

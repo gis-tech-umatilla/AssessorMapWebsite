@@ -750,6 +750,34 @@ if (vectorDrawingOverlay) {
     vectorDrawingOverlay.addEventListener('mouseleave', () => {
         hideCursorTooltip();
     });
+    // KEYBOARD SHORTCUTS FOR TOOLS (1 - 9 TOP TO BOTTOM)
+    document.addEventListener('keydown', (e) => {
+        // Ignore shortcut keys when typing inside input fields, textareas, or select dropdowns
+        const activeEl = document.activeElement;
+        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT' || activeEl.isContentEditable)) {
+            return;
+        }
+
+        const toolKeyMap = {
+            '1': 'tool-view',        // 1: View Map
+            '2': 'tool-dot',         // 2: Point
+            '3': 'tool-line',        // 3: Solid Line
+            '4': 'tool-dash',        // 4: Dashed Line
+            '5': 'tool-highlighter', // 5: Highlighter
+            '6': 'tool-arrow',       // 6: Arrow
+            '7': 'tool-shape',       // 7: Polygon
+            '8': 'tool-circle',      // 8: Circle
+            '9': 'tool-text'         // 9: Insert Text
+        };
+
+        if (toolKeyMap[e.key]) {
+            const btn = document.getElementById(toolKeyMap[e.key]);
+            if (btn) {
+                e.preventDefault();
+                btn.click(); // Triggers existing tool selection logic & UI updates
+            }
+        }
+    });
 
     // CANCEL DRAWING ON ESCAPE
     document.addEventListener('keydown', (e) => {

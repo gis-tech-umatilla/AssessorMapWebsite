@@ -1,30 +1,65 @@
-const sidebarList = document.getElementById('sidebarList');
-const toggleVisibilityBtn = document.getElementById('toggleVisibility');
-const visibilityText = document.getElementById('visibilityText');
-const toggleFixedVisibilityBtn = document.getElementById('toggleFixedVisibility');
-const fixedVisibilityText = document.getElementById('fixedVisibilityText');
+// Safe Global State Initialization
+if (typeof window.activeErrors === 'undefined') window.activeErrors = [];
+if (typeof window.pinsVisible === 'undefined') window.pinsVisible = true;
+if (typeof window.fixedPinsVisible === 'undefined') window.fixedPinsVisible = true;
+if (typeof window.sidebarScrollPosition === 'undefined') window.sidebarScrollPosition = 0;
+if (typeof window.currentActivePopoverId === 'undefined') window.currentActivePopoverId = null;
+if (typeof window.newlyCreatedPinId === 'undefined') window.newlyCreatedPinId = null;
 
-const floatingPopover = document.getElementById('floatingPopover');
-const popoverBadge = document.getElementById('popoverBadge');
-const popoverTitle = document.getElementById('popoverTitle');
-const popoverContent = document.getElementById('popoverContent');
-const closePopoverBtn = document.getElementById('closePopoverBtn');
-const popoverActionBtn = document.getElementById('popoverActionBtn');
+var sidebarList = document.getElementById('sidebarList');
+var toggleVisibilityBtn = document.getElementById('toggleVisibility');
+var visibilityText = document.getElementById('visibilityText');
+var toggleFixedVisibilityBtn = document.getElementById('toggleFixedVisibility');
+var fixedVisibilityText = document.getElementById('fixedVisibilityText');
 
-toggleVisibilityBtn.addEventListener('click', () => {
-    pinsVisible = !pinsVisible;
-    visibilityText.innerText = pinsVisible ? 'Hide Open' : 'Show Open';
-    renderUI();
-});
+var floatingPopover = document.getElementById('floatingPopover');
+var popoverBadge = document.getElementById('popoverBadge');
+var popoverTitle = document.getElementById('popoverTitle');
+var popoverContent = document.getElementById('popoverContent');
+var closePopoverBtn = document.getElementById('closePopoverBtn');
+var popoverActionBtn = document.getElementById('popoverActionBtn');
 
-toggleFixedVisibilityBtn.addEventListener('click', () => {
-    fixedPinsVisible = !fixedPinsVisible;
-    fixedVisibilityText.innerText = fixedPinsVisible ? 'Hide Fixed' : 'Show Fixed';
-    renderUI();
-});
+// Fallback Helper for User Colors
+if (typeof window.getUserColorStyle !== 'function') {
+    window.getUserColorStyle = function(username) {
+        return { bg: 'bg-indigo-600', text: 'text-indigo-600' };
+    };
+}
 
-// FLOATING CONTEXT POPUP ENGINE (FORMATTED MATCHING COMPARISON TOOL)
+// Event Listeners
+if (toggleVisibilityBtn) {
+    toggleVisibilityBtn.addEventListener('click', () => {
+        pinsVisible = !pinsVisible;
+        if (visibilityText) visibilityText.innerText = pinsVisible ? 'Hide Open' : 'Show Open';
+        renderUI();
+    });
+}
+
+if (toggleFixedVisibilityBtn) {
+    toggleFixedVisibilityBtn.addEventListener('click', () => {
+        fixedPinsVisible = !fixedPinsVisible;
+        if (fixedVisibilityText) fixedVisibilityText.innerText = fixedPinsVisible ? 'Hide Fixed' : 'Show Fixed';
+        renderUI();
+    });
+}
+
+if (closePopoverBtn) {
+    closePopoverBtn.addEventListener('click', hideIssuePopover);
+}
+
+var mapViewport = document.getElementById('mapViewport');
+if (mapViewport) {
+    mapViewport.addEventListener('click', (e) => {
+        if (floatingPopover && !floatingPopover.contains(e.target) && e.target.id !== 'floatingPopover' && e.target.id === 'vectorDrawingOverlay') {
+            hideIssuePopover();
+        }
+    });
+}
+
+// Popover Logic
 function triggerIssuePopover(clickEvent, err) {
+    if (!floatingPopover) return;
+
     if (currentActivePopoverId === err.id && !floatingPopover.classList.contains('hidden')) {
         hideIssuePopover();
         return;
@@ -36,25 +71,36 @@ function triggerIssuePopover(clickEvent, err) {
     if (err.tool_type === 'line') typeLabel = 'Line';
     if (err.tool_type === 'dash') typeLabel = 'Dash';
     if (err.tool_type === 'arrow') typeLabel = 'Arrow';
+    if (err.tool_type === 'circle') typeLabel = 'Circle';
+    if (err.tool_type === 'highlighter') typeLabel = 'Highlighter';
+    if (err.tool_type === 'shape') typeLabel = 'Shape';
     if (err.tool_type === 'text') typeLabel = 'Text';
 
     currentActivePopoverId = err.id;
 
-    popoverBadge.className = `rounded-full w-5 h-5 text-[10px] flex items-center justify-center font-bold ${isFixed ? 'bg-emerald-600' : 'bg-red-600'}`;
-    popoverBadge.innerText = pinNum;
-    popoverTitle.innerText = `${typeLabel} ${err.created_by ? `(${err.created_by})` : ''}`;
+    if (popoverBadge) {
+        popoverBadge.className = `rounded-full w-5 h-5 text-[10px] flex items-center justify-center font-bold ${isFixed ? 'bg-emerald-600' : 'bg-red-600'}`;
+        popoverBadge.innerText = pinNum;
+    }
+    if (popoverTitle) {
+        popoverTitle.innerText = `${typeLabel} ${err.created_by ? `(${err.created_by})` : ''}`;
+    }
     
     const screenInput = document.getElementById(`input-${err.id}`);
     const textValue = screenInput ? screenInput.value : (err.description || '');
-    popoverContent.innerText = textValue.trim() || 'No Description';
+    if (popoverContent) {
+        popoverContent.innerText = textValue.trim() || 'No Description';
+    }
 
-    popoverActionBtn.innerText = isFixed ? 'Reopen Issue' : 'Mark As Fixed';
-    popoverActionBtn.className = `w-full py-1.5 text-xs font-bold text-white rounded-lg transition cursor-pointer shadow-md ${isFixed ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1985a1] hover:bg-[#1985a1]/80'}`;
-    
-    popoverActionBtn.onclick = () => {
-        togglePinStatus(err.id, err.status);
-        hideIssuePopover();
-    };
+    if (popoverActionBtn) {
+        popoverActionBtn.innerText = isFixed ? 'Reopen Issue' : 'Mark As Fixed';
+        popoverActionBtn.className = `w-full py-1.5 text-xs font-bold text-white rounded-lg transition cursor-pointer shadow-md ${isFixed ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1985a1] hover:bg-[#1985a1]/80'}`;
+        
+        popoverActionBtn.onclick = () => {
+            togglePinStatus(err.id, err.status);
+            hideIssuePopover();
+        };
+    }
 
     const viewportRect = document.getElementById('mapViewport').getBoundingClientRect();
     const targetElement = clickEvent.currentTarget;
@@ -97,18 +143,13 @@ function triggerIssuePopover(clickEvent, err) {
 }
 
 function hideIssuePopover() {
-    floatingPopover.classList.add('hidden');
+    if (floatingPopover) {
+        floatingPopover.classList.add('hidden');
+    }
     currentActivePopoverId = null;
 }
 
-closePopoverBtn.addEventListener('click', hideIssuePopover);
-
-document.getElementById('mapViewport').addEventListener('click', (e) => {
-    if (!floatingPopover.contains(e.target) && e.target.id !== 'floatingPopover' && e.target.id === 'vectorDrawingOverlay') {
-        hideIssuePopover();
-    }
-});
-
+// Database Actions
 async function saveInlineDescription(pinId, value) {
     const targetVal = value.trim();
     const localErr = activeErrors.find(e => e.id === pinId);
@@ -130,27 +171,38 @@ async function saveInlineLayer(pinId, selectedLayer) {
 async function togglePinStatus(pinId, currentStatus) {
     const nextStatus = currentStatus === 'fixed' ? 'open' : 'fixed';
     await supabaseClient.from('map_errors').update({ status: nextStatus }).eq('id', pinId);
+    fetchPins();
 }
 
 async function handlePinClick(e, err) {
+    if (typeof activeTool !== 'undefined' && activeTool !== 'view') {
+        // When drawing, do not open popups; allow the click to place a drawing point
+        return;
+    }
     e.stopPropagation();
     triggerIssuePopover(e, err);
 }
 
 async function fetchPins() {
-    if (!currentMapId) return;
+    if (typeof currentMapId === 'undefined' || !currentMapId) {
+        console.log('[Issue Render Debug] fetchPins skipped: currentMapId is null.');
+        return;
+    }
 
     const activeEl = document.activeElement;
-    const isUserEditing = activeEl && sidebarList.contains(activeEl) && 
+    const isUserEditing = activeEl && sidebarList && sidebarList.contains(activeEl) && 
         (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT');
 
     if (isUserEditing && !newlyCreatedPinId) {
+        console.log('[Issue Render Debug] fetchPins skipped: User is typing in sidebar input.');
         return;
     }
 
     if (sidebarList) {
         sidebarScrollPosition = sidebarList.scrollTop;
     }
+
+    console.log(`[Issue Render Debug] Fetching issues from Supabase for Map ID: ${currentMapId}...`);
 
     const { data, error } = await supabaseClient
         .from('map_errors')
@@ -159,12 +211,26 @@ async function fetchPins() {
         .order('error_number', { ascending: true });
 
     if (!error) { 
-        activeErrors = data; 
+        activeErrors = data || []; 
+        console.log(`[Issue Render Debug] Successfully fetched ${activeErrors.length} issues. Invoking renderUI()...`);
         renderUI(); 
+    } else {
+        console.error('[Issue Render Debug] Error fetching pins from database:', error.message);
     }
 }
 
+// Main UI Rendering Pipeline
 function renderUI() {
+    var vectorDrawingOverlay = document.getElementById('vectorDrawingOverlay');
+    var sidebarList = document.getElementById('sidebarList');
+
+    console.log('[Issue Render Debug] renderUI executed.');
+
+    if (!vectorDrawingOverlay || !sidebarList) {
+        console.error('[Issue Render Debug] Aborting renderUI: Container reference missing.');
+        return;
+    }
+
     const activeElement = document.activeElement;
     let activeInputId = null;
     let selectionStart = 0;
@@ -182,92 +248,374 @@ function renderUI() {
         sidebarScrollPosition = sidebarList.scrollTop;
     }
 
-    dotsContainer.innerHTML = '';
-    const linesToRemove = vectorDrawingOverlay.querySelectorAll('line');
-    linesToRemove.forEach(el => el.remove());
+    // Preserve SVG Defs for arrowhead markers
+    const defs = vectorDrawingOverlay.querySelector('defs');
+    vectorDrawingOverlay.innerHTML = '';
+    if (defs) vectorDrawingOverlay.appendChild(defs);
 
-    const canvasWidth = mapWrapper.offsetWidth || mapWrapper.clientWidth;
-    const canvasHeight = mapWrapper.offsetHeight || mapWrapper.clientHeight;
-    
+    let canvasWidth = 1000;
+    let canvasHeight = 1000;
+    if (typeof currentMapBounds !== 'undefined' && currentMapBounds) {
+        canvasHeight = currentMapBounds[1][0];
+        canvasWidth = currentMapBounds[1][1];
+    }
+
     vectorDrawingOverlay.setAttribute('viewBox', `0 0 ${canvasWidth} ${canvasHeight}`);
+    vectorDrawingOverlay.setAttribute('width', `${canvasWidth}`);
+    vectorDrawingOverlay.setAttribute('height', `${canvasHeight}`);
 
-    activeErrors.forEach((err) => {
+    const errorsToRender = typeof activeErrors !== 'undefined' && activeErrors ? activeErrors : [];
+    console.log(`[Issue Render Debug] Rendering ${errorsToRender.length} SVG issues on unscaled PDF bounds (${canvasWidth}px x ${canvasHeight}px)...`);
+
+    errorsToRender.forEach((err) => {
         const pinNumber = err.error_number || '?';
         const isFixed = err.status === 'fixed';
         const colorHex = isFixed ? '#059669' : '#dc2626';
-        const dotColorClass = isFixed ? 'bg-emerald-600' : 'bg-red-600';
-        const badgeColorClass = isFixed ? 'bg-emerald-600' : 'bg-red-600';
 
         let showOnMap = true;
-        if (!isFixed && !pinsVisible) showOnMap = false;
-        if (isFixed && !fixedPinsVisible) showOnMap = false;
+        if (!isFixed && typeof pinsVisible !== 'undefined' && !pinsVisible) showOnMap = false;
+        if (isFixed && typeof fixedPinsVisible !== 'undefined' && !fixedPinsVisible) showOnMap = false;
 
         if (showOnMap) {
+            // DYNAMIC SIZE DERIVED FROM CONFIG
+            const defaultKey = typeof DEFAULT_ISSUE_SIZE !== 'undefined' ? DEFAULT_ISSUE_SIZE : 'medium';
+            const rawSizeKey = (err.issue_size || defaultKey).toLowerCase();
+            
+            let sizeKey = 'medium';
+            if (rawSizeKey === 'small' || rawSizeKey === 's') sizeKey = 'small';
+            else if (rawSizeKey === 'large' || rawSizeKey === 'l') sizeKey = 'large';
+
+            const fallbackSizes = { small: 13, medium: 18, large: 25 };
+            const baseSize = (typeof ISSUE_SIZES !== 'undefined' && ISSUE_SIZES[sizeKey])
+                ? ISSUE_SIZES[sizeKey]
+                : fallbackSizes[sizeKey];
+
+            const dotRadius = baseSize;
+            const strokeWidthVal = Math.round(baseSize * (8 / 18));
+
             if (err.tool_type === 'line' || err.tool_type === 'dash' || err.tool_type === 'arrow') {
-                const coords = JSON.parse(err.geometry_data);
+                try {
+                    const coords = typeof err.geometry_data === 'string' ? JSON.parse(err.geometry_data) : err.geometry_data;
+                    if (coords) {
+                        const pixelX1 = (coords.x1 / 100) * canvasWidth;
+                        const pixelY1 = (coords.y1 / 100) * canvasHeight;
+                        const pixelX2 = (coords.x2 / 100) * canvasWidth;
+                        const pixelY2 = (coords.y2 / 100) * canvasHeight;
+
+                        console.log(`[Issue Render Debug] SVG line #${err.id}: (${pixelX1.toFixed(1)}, ${pixelY1.toFixed(1)}) -> (${pixelX2.toFixed(1)}, ${pixelY2.toFixed(1)})`);
+
+                        const svgLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        svgLine.setAttribute('class', 'svg-markup-line cursor-pointer pointer-events-auto');
+                        svgLine.setAttribute('x1', pixelX1); 
+                        svgLine.setAttribute('y1', pixelY1);
+                        svgLine.setAttribute('x2', pixelX2); 
+                        svgLine.setAttribute('y2', pixelY2);
+                        svgLine.setAttribute('stroke', colorHex); 
+                        svgLine.setAttribute('stroke-width', strokeWidthVal);
+                        
+                        if (err.tool_type === 'dash') svgLine.setAttribute('stroke-dasharray', `${strokeWidthVal * 2},${strokeWidthVal * 2}`);
+                        if (err.tool_type === 'arrow') svgLine.setAttribute('marker-end', isFixed ? 'url(#arrowhead-fixed)' : 'url(#arrowhead)');
+                        
+                        svgLine.addEventListener('click', (e) => handlePinClick(e, err));
+                        vectorDrawingOverlay.appendChild(svgLine);
+                        
+                        // Line Start Circle Badge
+                        const startGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                        startGroup.setAttribute('class', 'cursor-pointer pointer-events-auto');
+                        startGroup.onclick = (e) => handlePinClick(e, err);
+
+                        const startCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                        startCircle.setAttribute('cx', pixelX1);
+                        startCircle.setAttribute('cy', pixelY1);
+                        startCircle.setAttribute('r', dotRadius);
+                        startCircle.setAttribute('fill', colorHex);
+                        startCircle.setAttribute('stroke-width', '3');
+
+                        const startText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                        startText.setAttribute('x', pixelX1);
+                        startText.setAttribute('y', pixelY1 + (dotRadius * 0.35));
+                        startText.setAttribute('fill', '#ffffff');
+                        startText.setAttribute('font-weight', 'bold');
+                        startText.setAttribute('font-size', `${dotRadius * 1.1}px`);
+                        startText.setAttribute('text-anchor', 'middle');
+                        startText.textContent = pinNumber;
+
+                        startGroup.appendChild(startCircle);
+                        startGroup.appendChild(startText);
+                        vectorDrawingOverlay.appendChild(startGroup);
+                    }
+                } catch (e) {
+                    console.error(`[Issue Render Debug] Error rendering line #${err.id}:`, e);
+                }
+            } else if (err.tool_type === 'circle') {
+                try {
+                    const coords = typeof err.geometry_data === 'string' ? JSON.parse(err.geometry_data) : err.geometry_data;
+                    if (coords) {
+                        const pixelCx = (coords.cx / 100) * canvasWidth;
+                        const pixelCy = (coords.cy / 100) * canvasHeight;
+                        const pixelEdgeX = (coords.edgeX / 100) * canvasWidth;
+                        const pixelEdgeY = (coords.edgeY / 100) * canvasHeight;
+                        const radius = Math.hypot(pixelEdgeX - pixelCx, pixelEdgeY - pixelCy);
+
+                        const svgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                        svgCircle.setAttribute('class', 'cursor-pointer pointer-events-auto');
+                        svgCircle.setAttribute('cx', pixelCx);
+                        svgCircle.setAttribute('cy', pixelCy);
+                        svgCircle.setAttribute('r', radius);
+                        svgCircle.setAttribute('stroke', colorHex);
+                        svgCircle.setAttribute('stroke-width', strokeWidthVal);
+                        svgCircle.setAttribute('fill', `${colorHex}0d`); // 95% transparent (5% opacity)
+                        svgCircle.addEventListener('click', (e) => handlePinClick(e, err));
+                        vectorDrawingOverlay.appendChild(svgCircle);
+
+                        // Position badge on the left edge along the circle line
+                        const badgeX = pixelCx - radius;
+                        const badgeY = pixelCy;
+
+                        const edgeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                        edgeGroup.setAttribute('class', 'cursor-pointer pointer-events-auto');
+                        edgeGroup.onclick = (e) => handlePinClick(e, err);
+
+                        const circleBadge = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                        circleBadge.setAttribute('cx', badgeX);
+                        circleBadge.setAttribute('cy', badgeY);
+                        circleBadge.setAttribute('r', dotRadius);
+                        circleBadge.setAttribute('fill', colorHex);
+
+                        const badgeText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                        badgeText.setAttribute('x', badgeX);
+                        badgeText.setAttribute('y', badgeY + (dotRadius * 0.35));
+                        badgeText.setAttribute('fill', '#ffffff');
+                        badgeText.setAttribute('font-weight', 'bold');
+                        badgeText.setAttribute('font-size', `${dotRadius * 1.1}px`);
+                        badgeText.setAttribute('text-anchor', 'middle');
+                        badgeText.textContent = pinNumber;
+
+                        edgeGroup.appendChild(circleBadge);
+                        edgeGroup.appendChild(badgeText);
+                        vectorDrawingOverlay.appendChild(edgeGroup);
+                    }
+                } catch (e) {
+                    console.error(`[Issue Render Debug] Error rendering circle #${err.id}:`, e);
+                }
+
+        } else if (err.tool_type === 'highlighter') {
+            try {
+                const coords = typeof err.geometry_data === 'string' ? JSON.parse(err.geometry_data) : err.geometry_data;
                 if (coords) {
                     const pixelX1 = (coords.x1 / 100) * canvasWidth;
                     const pixelY1 = (coords.y1 / 100) * canvasHeight;
                     const pixelX2 = (coords.x2 / 100) * canvasWidth;
                     const pixelY2 = (coords.y2 / 100) * canvasHeight;
 
+                    const highlightWidth = strokeWidthVal * 3.5;
+
                     const svgLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                    svgLine.setAttribute('class', 'svg-markup-line cursor-pointer pointer-events-auto');
+                    svgLine.setAttribute('class', 'cursor-pointer pointer-events-auto');
                     svgLine.setAttribute('x1', pixelX1); 
                     svgLine.setAttribute('y1', pixelY1);
                     svgLine.setAttribute('x2', pixelX2); 
                     svgLine.setAttribute('y2', pixelY2);
-                    svgLine.setAttribute('stroke', colorHex); 
-                    svgLine.setAttribute('stroke-width', '3');
-                    
-                    if (err.tool_type === 'dash') svgLine.setAttribute('stroke-dasharray', '6,6');
-                    if (err.tool_type === 'arrow') svgLine.setAttribute('marker-end', isFixed ? 'url(#arrowhead-fixed)' : 'url(#arrowhead)');
+                    svgLine.setAttribute('stroke', colorHex); // Uses #059669 (green) when fixed, #dc2626 (red) when open
+                    svgLine.setAttribute('stroke-opacity', '0.3'); // 70% transparent
+                    svgLine.setAttribute('stroke-width', highlightWidth);
+                    svgLine.setAttribute('stroke-linecap', 'round');
+                    svgLine.style.mixBlendMode = 'multiply';
                     
                     svgLine.addEventListener('click', (e) => handlePinClick(e, err));
                     vectorDrawingOverlay.appendChild(svgLine);
                     
-                    const startMarker = document.createElement('div');
-                    startMarker.className = `error-dot absolute ${dotColorClass} text-white font-bold rounded-full flex items-center justify-center shadow-md pointer-events-auto cursor-pointer`;
-                    startMarker.style.left = `${coords.x1}%`; 
-                    startMarker.style.top = `${coords.y1}%`;
-                    startMarker.innerText = pinNumber;
-                    startMarker.onclick = (e) => handlePinClick(e, err);
-                    dotsContainer.appendChild(startMarker);
+                    // Start Circle Badge
+                    const startGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    startGroup.setAttribute('class', 'cursor-pointer pointer-events-auto');
+                    startGroup.onclick = (e) => handlePinClick(e, err);
+
+                    const startCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    startCircle.setAttribute('cx', pixelX1);
+                    startCircle.setAttribute('cy', pixelY1);
+                    startCircle.setAttribute('r', dotRadius);
+                    startCircle.setAttribute('fill', colorHex);
+
+                    const startText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    startText.setAttribute('x', pixelX1);
+                    startText.setAttribute('y', pixelY1 + (dotRadius * 0.35));
+                    startText.setAttribute('fill', '#ffffff');
+                    startText.setAttribute('font-weight', 'bold');
+                    startText.setAttribute('font-size', `${dotRadius * 1.1}px`);
+                    startText.setAttribute('text-anchor', 'middle');
+                    startText.textContent = pinNumber;
+
+                    startGroup.appendChild(startCircle);
+                    startGroup.appendChild(startText);
+                    vectorDrawingOverlay.appendChild(startGroup);
+                }
+            } catch (e) {
+                console.error(`[Issue Render Debug] Error rendering highlighter #${err.id}:`, e);
+            }
+        } else if (err.tool_type === 'shape') {
+                try {
+                    const coords = typeof err.geometry_data === 'string' ? JSON.parse(err.geometry_data) : err.geometry_data;
+                    if (coords && coords.points && coords.points.length > 0) {
+                        let ptsStr = '';
+                        let startPx = null;
+
+                        coords.points.forEach((pt, idx) => {
+                            const px = (pt.x / 100) * canvasWidth;
+                            const py = (pt.y / 100) * canvasHeight;
+                            ptsStr += `${px},${py} `;
+                            if (idx === 0) startPx = { x: px, y: py };
+                        });
+
+                        const svgPoly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                        svgPoly.setAttribute('class', 'cursor-pointer pointer-events-auto');
+                        svgPoly.setAttribute('points', ptsStr.trim());
+                        svgPoly.setAttribute('stroke', colorHex);
+                        svgPoly.setAttribute('stroke-width', strokeWidthVal);
+                        svgPoly.setAttribute('fill', `${colorHex}0d`); // 95% transparent (5% opacity)
+                        svgPoly.addEventListener('click', (e) => handlePinClick(e, err));
+                        vectorDrawingOverlay.appendChild(svgPoly);
+
+                        if (startPx) {
+                            const startGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                            startGroup.setAttribute('class', 'cursor-pointer pointer-events-auto');
+                            startGroup.onclick = (e) => handlePinClick(e, err);
+
+                            const badgeCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                            badgeCircle.setAttribute('cx', startPx.x);
+                            badgeCircle.setAttribute('cy', startPx.y);
+                            badgeCircle.setAttribute('r', dotRadius);
+                            badgeCircle.setAttribute('fill', colorHex);
+
+                            const badgeText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                            badgeText.setAttribute('x', startPx.x);
+                            badgeText.setAttribute('y', startPx.y + (dotRadius * 0.35));
+                            badgeText.setAttribute('fill', '#ffffff');
+                            badgeText.setAttribute('font-weight', 'bold');
+                            badgeText.setAttribute('font-size', `${dotRadius * 1.1}px`);
+                            badgeText.setAttribute('text-anchor', 'middle');
+                            badgeText.textContent = pinNumber;
+
+                            startGroup.appendChild(badgeCircle);
+                            startGroup.appendChild(badgeText);
+                            vectorDrawingOverlay.appendChild(startGroup);
+                        }
+                    }
+                } catch (e) {
+                    console.error(`[Issue Render Debug] Error rendering shape #${err.id}:`, e);
                 }
             } else if (err.tool_type === 'text') {
-                const labelText = err.description || 'Type text...';
-                const textLabel = document.createElement('div');
-                textLabel.className = `map-text-annotation absolute font-medium rounded shadow whitespace-nowrap flex items-center h-[8px] py-0 pl-0 pr-1 space-x-1 pointer-events-auto cursor-pointer transition ${isFixed ? 'text-emerald-800 border-emerald-300 bg-emerald-50' : 'text-red-800 border-red-300 bg-red-50'}`;
-                textLabel.style.left = `${err.x_percent}%`; 
-                textLabel.style.top = `${err.y_percent}%`;
-                
-                textLabel.innerHTML = `
-                    <span class="${badgeColorClass} text-white rounded-full w-[14px] h-[14px] text-[8px] flex items-center justify-center font-bold shrink-0 m-0">${pinNumber}</span>
-                    <span class="font-bold tracking-tight text-[8px] self-center pl-1 leading-none">${labelText}</span>
-                `;
-                textLabel.onclick = (e) => handlePinClick(e, err);
-                dotsContainer.appendChild(textLabel);
-            } else {
-                const dot = document.createElement('div');
-                dot.className = `error-dot absolute ${dotColorClass} text-white font-bold rounded-full flex items-center justify-center shadow-lg pointer-events-auto cursor-pointer`;
-                dot.style.left = `${err.x_percent}%`; 
-                dot.style.top = `${err.y_percent}%`;
-                dot.innerText = pinNumber;
-                dot.onclick = (e) => handlePinClick(e, err);
-                dotsContainer.appendChild(dot);
+                        const pixelX = (err.x_percent / 100) * canvasWidth;
+                        const pixelY = (err.y_percent / 100) * canvasHeight;
+                        const labelText = err.description || 'Type text...';
+
+                        let textAngle = 0;
+                        let geomAngle = null;
+
+                        // 1. Try parsing angle from geometry_data
+                        if (err.geometry_data) {
+                            try {
+                                const coords = typeof err.geometry_data === 'string' ? JSON.parse(err.geometry_data) : err.geometry_data;
+                                if (coords && typeof coords.angle === 'number') {
+                                    geomAngle = coords.angle;
+                                }
+                            } catch (e) {}
+                        }
+
+                        // 2. Resolve angle: Prefer non-zero database column, fallback to geometry_data angle
+                        if (typeof err.angle === 'number' && err.angle !== 0) {
+                            textAngle = err.angle;
+                        } else if (geomAngle !== null && geomAngle !== undefined) {
+                            textAngle = geomAngle;
+                        } else if (typeof err.angle === 'number') {
+                            textAngle = err.angle;
+                        }
+
+                        console.log(`[Issue Render Debug] SVG text #${err.id} -> DB angle: ${err.angle}, geometry_data angle: ${geomAngle}, resolved angle: ${textAngle}°`);
+
+                        const textGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                        textGroup.setAttribute('class', 'cursor-pointer pointer-events-auto');
+                        textGroup.onclick = (e) => handlePinClick(e, err);
+
+                        // Badge circle (Always upright at 0°)
+                        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                        circle.setAttribute('cx', pixelX);
+                        circle.setAttribute('cy', pixelY);
+                        circle.setAttribute('r', dotRadius * 0.85);
+                        circle.setAttribute('fill', colorHex);
+
+                        // Badge number (Always upright at 0°)
+                        const numText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                        numText.setAttribute('x', pixelX);
+                        numText.setAttribute('y', pixelY + (dotRadius * 0.3));
+                        numText.setAttribute('fill', '#ffffff');
+                        numText.setAttribute('font-weight', 'bold');
+                        numText.setAttribute('font-size', `${dotRadius * 0.9}px`);
+                        numText.setAttribute('text-anchor', 'middle');
+                        numText.textContent = pinNumber;
+
+                        // Overlay Text string (Rotated around the badge center point)
+                        const annotationText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                        annotationText.id = `svg-text-element-${err.id}`;
+                        annotationText.setAttribute('x', pixelX + dotRadius + 6);
+                        annotationText.setAttribute('y', pixelY + (dotRadius * 0.35));
+                        annotationText.setAttribute('fill', colorHex);
+                        annotationText.setAttribute('font-weight', 'bold');
+                        annotationText.setAttribute('font-size', `${dotRadius * 1.1}px`);
+                        annotationText.setAttribute('xml:space', 'preserve');
+                        
+                        if (textAngle !== 0) {
+                            annotationText.setAttribute('transform', `rotate(${textAngle}, ${pixelX}, ${pixelY})`);
+                        }
+                        annotationText.textContent = labelText;
+
+                        textGroup.appendChild(circle);
+                        textGroup.appendChild(numText);
+                        textGroup.appendChild(annotationText);
+                        vectorDrawingOverlay.appendChild(textGroup);
+                    } else {
+                // POINT TOOL: SVG Circle element drawn in unscaled PDF coordinate space
+                const pixelX = (err.x_percent / 100) * canvasWidth;
+                const pixelY = (err.y_percent / 100) * canvasHeight;
+
+                console.log(`[Issue Render Debug] SVG point #${err.id} at (${pixelX.toFixed(1)}, ${pixelY.toFixed(1)})`);
+
+                const pointGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                pointGroup.setAttribute('class', 'cursor-pointer pointer-events-auto');
+                pointGroup.onclick = (e) => handlePinClick(e, err);
+
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', pixelX);
+                circle.setAttribute('cy', pixelY);
+                circle.setAttribute('r', dotRadius);
+                circle.setAttribute('fill', colorHex);
+                circle.setAttribute('stroke-width', '3');
+
+                const numText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                numText.setAttribute('x', pixelX);
+                numText.setAttribute('y', pixelY + (dotRadius * 0.35));
+                numText.setAttribute('fill', '#ffffff');
+                numText.setAttribute('font-weight', 'bold');
+                numText.setAttribute('font-size', `${dotRadius * 1.15}px`);
+                numText.setAttribute('text-anchor', 'middle');
+                numText.textContent = pinNumber;
+
+                pointGroup.appendChild(circle);
+                pointGroup.appendChild(numText);
+                vectorDrawingOverlay.appendChild(pointGroup);
             }
         }
     });
 
-    if (activeErrors.length === 0) {
+    if (errorsToRender.length === 0) {
         sidebarList.innerHTML = '<p class="text-sm text-gray-400 italic">No Issues Logged Yet</p>';
+        console.log('[Issue Render Debug] renderUI completed. No issues to list in sidebar.');
         return;
     }
 
     const emptyPlaceholder = sidebarList.querySelector('p');
     if (emptyPlaceholder) emptyPlaceholder.remove();
 
-    const currentDatabaseIds = new Set(activeErrors.map(err => err.id));
+    const currentDatabaseIds = new Set(errorsToRender.map(err => err.id));
     const existingDOMCards = sidebarList.querySelectorAll('[data-card-issue-id]');
     existingDOMCards.forEach(card => {
         const issueId = card.getAttribute('data-card-issue-id');
@@ -278,7 +626,7 @@ function renderUI() {
 
     let inputToFocus = null;
 
-    activeErrors.forEach((err, index) => {
+    errorsToRender.forEach((err, index) => {
         const pinNumber = err.error_number || '?';
         const isFixed = err.status === 'fixed';
         
@@ -289,6 +637,9 @@ function renderUI() {
         if (err.tool_type === 'line') typePrefix = 'Line';
         if (err.tool_type === 'dash') typePrefix = 'Dash';
         if (err.tool_type === 'arrow') typePrefix = 'Arrow';
+        if (err.tool_type === 'circle') typePrefix = 'Circle';
+        if (err.tool_type === 'highlighter') typePrefix = 'Highlighter';
+        if (err.tool_type === 'shape') typePrefix = 'Polygon';
         if (err.tool_type === 'text') typePrefix = 'Map Text';
 
         const creatorPrefix = err.created_by || '';
@@ -356,7 +707,7 @@ function renderUI() {
         item.querySelector('.creator-badge').innerHTML = displayCreator;
 
         const deleteBtn = item.querySelector('.delete-pin-btn');
-        if (activeTool === 'view') {
+        if (typeof activeTool !== 'undefined' && activeTool === 'view') {
             deleteBtn.classList.add('hidden');
         } else {
             deleteBtn.classList.remove('hidden');
@@ -371,10 +722,12 @@ function renderUI() {
             if (document.activeElement !== selectDropdown) {
                 const defaultOptionSelected = (!err.gis_layer) ? 'selected' : '';
                 let layerOptionsHTML = `<option value="" ${defaultOptionSelected}>--- Select Layer (Unassigned) ---</option>`;
-                GIS_LAYERS_REGISTRY.forEach(layerName => {
-                    const isSelected = err.gis_layer === layerName ? 'selected' : '';
-                    layerOptionsHTML += `<option value="${layerName}" ${isSelected}>${layerName}</option>`;
-                });
+                if (typeof GIS_LAYERS_REGISTRY !== 'undefined') {
+                    GIS_LAYERS_REGISTRY.forEach(layerName => {
+                        const isSelected = err.gis_layer === layerName ? 'selected' : '';
+                        layerOptionsHTML += `<option value="${layerName}" ${isSelected}>${layerName}</option>`;
+                    });
+                }
                 selectDropdown.innerHTML = layerOptionsHTML;
             }
         } else {
@@ -394,22 +747,36 @@ function renderUI() {
         
         if (err.tool_type === 'text') {
             if (isNewCard) {
-                inlineInput.addEventListener('input', (e) => {
-                    const textAnnotationElement = dotsContainer.querySelector(`div[style*="left: ${err.x_percent}%"] span.font-bold:not([class*="badge"])`);
-                    if (textAnnotationElement) { textAnnotationElement.innerText = e.target.value || 'Type text...'; }
+                inlineInput.addEventListener('input', () => {
+                    const localErr = activeErrors.find(e => e.id === err.id);
+                    if (localErr) localErr.description = inlineInput.value;
+                    
+                    // Directly update map SVG text element without re-rendering entire UI
+                    const svgTextEl = document.getElementById(`svg-text-element-${err.id}`);
+                    if (svgTextEl) {
+                        svgTextEl.textContent = inlineInput.value || 'Type text...';
+                    }
                 });
-                inlineInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') inlineInput.blur(); });
+                inlineInput.addEventListener('keydown', (e) => {
+                    e.stopPropagation();
+                    if (e.key === 'Enter') inlineInput.blur();
+                });
+                inlineInput.addEventListener('keyup', (e) => e.stopPropagation());
                 inlineInput.addEventListener('blur', () => saveInlineDescription(err.id, inlineInput.value));
 
                 selectDropdown.addEventListener('change', (e) => { saveInlineLayer(err.id, e.target.value); });
             }
-            if (err.id === newlyCreatedPinId) inputToFocus = inlineInput;
+            if (typeof newlyCreatedPinId !== 'undefined' && err.id === newlyCreatedPinId) inputToFocus = inlineInput;
         } else {
             if (isNewCard) {
-                inlineInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') inlineInput.blur(); });
+                inlineInput.addEventListener('keydown', (e) => {
+                    e.stopPropagation();
+                    if (e.key === 'Enter') inlineInput.blur();
+                });
+                inlineInput.addEventListener('keyup', (e) => e.stopPropagation());
                 inlineInput.addEventListener('blur', () => saveInlineDescription(err.id, inlineInput.value));
             }
-            if (err.id === newlyCreatedPinId) inputToFocus = inlineInput;
+            if (typeof newlyCreatedPinId !== 'undefined' && err.id === newlyCreatedPinId) inputToFocus = inlineInput;
         }
 
         const finalDelBtn = item.querySelector('.delete-pin-btn');
@@ -417,6 +784,7 @@ function renderUI() {
             finalDelBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 await supabaseClient.from('map_errors').delete().eq('id', err.id);
+                fetchPins();
             });
         }
 
@@ -434,17 +802,18 @@ function renderUI() {
         textarea.style.height = textarea.scrollHeight + 'px';
     });
 
-    adjustPinScaling();
-
     if (sidebarList) {
         sidebarList.scrollTop = sidebarScrollPosition;
     }
 
     if (inputToFocus) {
+        const isInitialCreation = typeof newlyCreatedPinId !== 'undefined' && newlyCreatedPinId !== null;
         setTimeout(() => {
             inputToFocus.focus();
-            if (activeTool === 'text') inputToFocus.select();
-            newlyCreatedPinId = null; 
+            if (isInitialCreation && typeof activeTool !== 'undefined' && activeTool === 'text') {
+                inputToFocus.select();
+            }
+            if (typeof newlyCreatedPinId !== 'undefined') newlyCreatedPinId = null; 
         }, 50);
     } else if (activeInputId) {
         const inputToRestore = document.getElementById(activeInputId);
@@ -453,10 +822,10 @@ function renderUI() {
             if (inputToRestore.tagName === 'TEXTAREA') {
                 try {
                     inputToRestore.setSelectionRange(selectionStart, selectionEnd);
-                } catch (err) {
-                    // Ignore selectionRange errors on unmounted frames
-                }
+                } catch (err) {}
             }
         }
     }
+
+    console.log('[Issue Render Debug] renderUI completed successfully.');
 }

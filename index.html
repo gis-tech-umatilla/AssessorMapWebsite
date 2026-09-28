@@ -11,6 +11,9 @@
     <script src="https://cdn.jsdelivr.net/npm/@panzoom/panzoom@4.5.1/dist/panzoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.7/Sortable.min.js"></script>
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="style.css">
@@ -66,14 +69,26 @@
         <!-- CENTER VIEWPORT -->
         <div class="flex-1 relative bg-slate-300 overflow-hidden flex items-center justify-center min-w-0" id="mapViewport">
             <div class="absolute top-4 left-4 z-40 bg-[#4c5c68]/95 backdrop-blur text-white rounded-xl shadow-2xl p-2 flex flex-col space-y-1.5 border border-white/10 hidden" id="drawingToolbar">
-                <span class="text-[10px] text-[#b3a98f] font-bold uppercase tracking-wider text-center border-b border-black/20 pb-1 mb-1">Tools</span>
+                <span class="text-xs font-extrabold text-slate-100 uppercase tracking-wider text-center border-b border-black/20 pb-1 mb-0.5">TOOLS</span>
                 <button id="tool-view" class="tool-btn px-3 py-1.5 bg-[#1985a1] text-white text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition shadow-md"><span>View Map</span></button>
                 <button id="tool-dot" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>·</span><span>Point</span></button>
                 <button id="tool-line" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>—</span><span>Solid Line</span></button>
                 <button id="tool-dash" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>---</span><span>Dashed Line</span></button>
+                <button id="tool-highlighter" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>🖍</span><span>Highlighter</span></button>
                 <button id="tool-arrow" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>⮕</span><span>Arrow</span></button>
+                <button id="tool-shape" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>⬡</span><span>Polygon</span></button>
+                <button id="tool-circle" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>◯</span><span>Circle</span></button>
                 <button id="tool-text" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>ABC</span><span>Insert Text</span></button>
-                <span class="text-[9px] text-[#b3a98f] text-center pt-1 border-t border-black/20 font-medium italic" id="toolHint">Mode: Viewing / Pan-Zoom</span>
+
+                <!-- SIZE SELECTOR PANEL -->
+                <div id="sizeSelectorPanel" class="mt-1 pt-2 border-t border-black/20 flex flex-col space-y-1.5 hidden">
+                    <span class="text-xs font-extrabold text-slate-100 uppercase tracking-wider text-center pb-0.5">SIZE</span>
+                    <div class="flex space-x-1">
+                        <button id="size-small" class="size-btn flex-1 py-1.5 bg-black/20 hover:bg-black/30 text-[10px] font-bold rounded cursor-pointer transition">S</button>
+                        <button id="size-medium" class="size-btn flex-1 py-1.5 bg-[#1985a1] text-white text-[10px] font-bold rounded cursor-pointer transition shadow-md">M</button>
+                        <button id="size-large" class="size-btn flex-1 py-1.5 bg-black/20 hover:bg-black/30 text-[10px] font-bold rounded cursor-pointer transition">L</button>
+                    </div>
+                </div>
             </div>
 
             <div class="absolute top-4 right-4 z-40 bg-[#4c5c68]/90 backdrop-blur text-white rounded-lg shadow-2xl p-1 flex space-x-1 border border-white/10 hidden" id="zoomControls">
@@ -89,14 +104,14 @@
                     </div>
                     
                     <svg id="vectorDrawingOverlay" class="absolute inset-0 z-10 w-full h-full cursor-crosshair pointer-events-auto">
-                        <defs>
-                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
-                                <polygon points="0 0, 10 3.5, 0 7" fill="#dc2626" />
-                            </marker>
-                            <marker id="arrowhead-fixed" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
-                                <polygon points="0 0, 10 3.5, 0 7" fill="#059669" />
-                            </marker>
-                        </defs>
+                    <defs>
+                        <marker id="arrowhead" markerWidth="5" markerHeight="3.5" refX="4" refY="1.75" orient="auto">
+                            <polygon points="0 0, 5 1.75, 0 3.5" fill="#dc2626" />
+                        </marker>
+                        <marker id="arrowhead-fixed" markerWidth="5" markerHeight="3.5" refX="4" refY="1.75" orient="auto">
+                            <polygon points="0 0, 5 1.75, 0 3.5" fill="#059669" />
+                        </marker>
+                    </defs>
                     </svg>
                     <div id="dotsContainer" class="absolute inset-0 pointer-events-none z-20"></div>
                 </div>

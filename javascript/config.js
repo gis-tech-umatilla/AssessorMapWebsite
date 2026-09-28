@@ -4,6 +4,16 @@ const SUPABASE_URL = "https://wsacgqykgmnsxzaqyvpn.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Tg79inBzykOOvoyN0ne1Jw_i7BpKu4D";
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// --- ISSUE SIZE CONFIGURATION ---
+const ISSUE_SIZES = {
+    small: 14,    // Size in pixels (or your desired scale unit)
+    medium: 24,   // Size in pixels (or your desired scale unit)
+    large: 32     // Size in pixels (or your desired scale unit)
+};
+
+// Global default issue size setting ('small', 'medium', or 'large')
+const DEFAULT_ISSUE_SIZE = 'medium';
+
 // --- AUTH & ROSTER SYSTEM CONTROLS ---
 const EXPLICIT_ALLOWED_EMAILS = [
     "ian.freel@umatillacounty.gov",

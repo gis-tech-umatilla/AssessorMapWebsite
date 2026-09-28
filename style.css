@@ -17,10 +17,53 @@
     font-size: 8px !important;
 }
 
-/* Force butter-smooth panning and zoom adjustments across layout refreshes */
+/* Panzoom Container: Transition removed to ensure instant focal calculations without top-left corner drift */
 #panzoomContainer {
-    transition: transform 0.15s cubic-bezier(0.25, 1, 0.5, 1) !important;
+    transform-origin: 0 0;
     will-change: transform;
+}
+
+/* Custom Sleek Scrollbars for Modern Browsers */
+#mapList, #sidebarList, body {
+    scrollbar-width: thin; /* Firefox */
+}
+
+/* Dark Left Sidebar Scrollbar (#mapList) */
+#mapList {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+#mapList::-webkit-scrollbar {
+    width: 6px;
+}
+#mapList::-webkit-scrollbar-track {
+    background: transparent;
+}
+#mapList::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 9999px;
+}
+#mapList::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.45);
+}
+
+/* Light Right Sidebar Scrollbar (#sidebarList) */
+#sidebarList {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+#sidebarList::-webkit-scrollbar {
+    width: 6px;
+}
+#sidebarList::-webkit-scrollbar-track {
+    background: transparent;
+}
+#sidebarList::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 9999px;
+}
+#sidebarList::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.4);
 }
 
 @media print {
@@ -133,26 +176,19 @@
     display: none;
 }
 
-/* Custom Sleek Scrollbars for Modern Browsers */
-#mapList, #sidebarList, body {
-    scrollbar-width: thin; /* Firefox */
+/* Override Leaflet's default background color to match slate-300 viewport */
+.leaflet-container {
+    background-color: #cbd5e1 !important; /* bg-slate-300 */
 }
 
-/* Sleek Custom Scrollbar for Left Sidebar (#mapList) */
-#mapList {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+/* Elevate floating UI toolbars above Leaflet's internal map panes (z-index 400–1000) */
+#drawingToolbar, 
+#zoomControls {
+    z-index: 2000 !important;
 }
-#mapList::-webkit-scrollbar {
-    width: 6px;
-}
-#mapList::-webkit-scrollbar-track {
-    background: transparent;
-}
-#mapList::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.25);
-    border-radius: 9999px;
-}
-#mapList::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.45);
+
+/* Fix zoom controls flex layout container */
+#zoomControls {
+    display: flex !important;
+    align-items: center;
 }

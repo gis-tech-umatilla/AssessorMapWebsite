@@ -160,41 +160,19 @@ async function getCurrentUserIdentifier() {
 }
 
 function getMapUploader(err) {
-    const m = (typeof window.currentMap !== 'undefined' && window.currentMap) 
-           || (typeof currentMap !== 'undefined' && currentMap)
-           || (typeof window.activeMap !== 'undefined' && window.activeMap)
-           || null;
-           
-    if (m) {
-        if (m.uploaded_by) return m.uploaded_by;
-        if (m.created_by) return m.created_by;
-        if (m.uploader) return m.uploader;
-        if (m.user_email) return m.user_email;
-        if (m.owner) return m.owner;
-        
-        if (m.group_id && typeof window.mapGroups !== 'undefined' && Array.isArray(window.mapGroups)) {
-            const group = window.mapGroups.find(g => g.id === m.group_id);
-            if (group) {
-                if (group.created_by) return group.created_by;
-                if (group.uploaded_by) return group.uploaded_by;
-                if (group.group_name) return group.group_name.split(' ')[0];
-            }
-        }
+    if (!err) return '';
+
+    // 1. Direct schema relation: map_errors -> maps_registry -> map_groups -> created_by
+    if (err.maps_registry?.map_groups?.created_by) {
+        return err.maps_registry.map_groups.created_by;
     }
 
-    const g = (typeof window.currentGroup !== 'undefined' && window.currentGroup)
-           || (typeof currentGroup !== 'undefined' && currentGroup)
-           || (typeof window.activeGroup !== 'undefined' && window.activeGroup)
-           || null;
-    if (g) {
-        if (g.created_by) return g.created_by;
-        if (g.uploaded_by) return g.uploaded_by;
-        if (g.group_name) return g.group_name.split(' ')[0];
-    }
+    // 2. Fallbacks for globally held map/group objects
+    const m = (typeof window.currentMap !== 'undefined' && window.currentMap) || (typeof currentMap !== 'undefined' && currentMap) || null;
+    if (m?.uploaded_by || m?.created_by) return m.uploaded_by || m.created_by;
 
-    if (err && err.created_by) {
-        return err.created_by;
-    }
+    const g = (typeof window.currentGroup !== 'undefined' && window.currentGroup) || (typeof currentGroup !== 'undefined' && currentGroup) || null;
+    if (g?.created_by || g?.uploaded_by) return g.created_by || g.uploaded_by;
 
     return '';
 }
@@ -541,13 +519,22 @@ async function fetchPins() {
 
     await initUserIdentifier();
 
+    // Fetch pins with nested join to get map_groups.created_by
     const { data: errors, error } = await supabaseClient
         .from('map_errors')
-        .select('*')
+        .select(`
+            *,
+            maps_registry (
+                group_id,
+                map_groups (
+                    created_by
+                )
+            )
+        `)
         .eq('map_id', currentMapId)
         .order('error_number', { ascending: true });
 
-if (!error && errors) { 
+    if (!error && errors) { 
         activeErrors = errors; 
 
         // Batch fetch comments AND attachments for all issues to populate cache
@@ -579,7 +566,7 @@ if (!error && errors) {
     }
 }
 
-// Synchronous Comment Renderer (Read-only text <div> cards for other users' comments)
+// Synchronous Comment Renderer (No divider line between comments)
 function renderCommentsSync(err, item, forceShowInput = false) {
     const commentsDrawer = item.querySelector(`#comments-drawer-${err.id}`);
     const commentsList = item.querySelector(`#comments-list-${err.id}`);
@@ -594,7 +581,7 @@ function renderCommentsSync(err, item, forceShowInput = false) {
 
     const safeComments = (window.activeComments && window.activeComments[err.id]) || [];
     
-    // Locate the current user's own comment (if one already exists)
+    // Locate the current user's own saved comment (if any exists)
     const userComment = safeComments.find(c => {
         const authorNorm = typeof normUser === 'function' ? normUser(c.created_by) : (c.created_by || '').toLowerCase().trim().split('@')[0];
         return authorNorm && authorNorm === currentNorm;
@@ -605,7 +592,6 @@ function renderCommentsSync(err, item, forceShowInput = false) {
 
     if (shouldBeOpen) {
         commentsDrawer.classList.remove('hidden');
-        window.openCommentDrawers.add(err.id);
     } else {
         commentsDrawer.classList.add('hidden');
     }
@@ -616,15 +602,14 @@ function renderCommentsSync(err, item, forceShowInput = false) {
 
     let listHtml = '';
 
-    // 1. READ-ONLY COMMENTS (Comments created by other team members)
-    // Strictly rendered as clean text <div> elements with NO textboxes or input controls
+    // 1. READ-ONLY COMMENTS (No background box/border line, clean text flow)
     safeComments.filter(c => c !== userComment).forEach(c => {
         const name = typeof formatDisplayName === 'function' ? formatDisplayName(c.created_by) : (c.created_by ? c.created_by.split('@')[0] : '');
         const colors = typeof getUserColorStyle === 'function' ? getUserColorStyle(c.created_by) : { bg: 'bg-indigo-600', text: 'text-indigo-600' };
         const textClass = colors.bg ? colors.bg.replace(/^bg-/, 'text-') : 'text-indigo-600';
 
         listHtml += `
-            <div class="saved-comment-card ${commentCardClass} p-1.5 rounded shadow-2xs">
+            <div class="saved-comment-card ${commentCardClass} p-1 rounded">
                 <div class="mb-0.5">
                     <span class="text-xs italic">
                         <span class="font-bold saturate-75 opacity-90 ${textClass}">${name}</span>
@@ -636,15 +621,26 @@ function renderCommentsSync(err, item, forceShowInput = false) {
         `;
     });
 
-    const userCommentText = userComment ? userComment.comment_text : '';
+const userCommentText = userComment ? userComment.comment_text : '';
     const userCommentId = userComment ? userComment.id : null;
-    const showUserInput = userCommentId || isDrawerTrackedOpen || forceShowInput;
+
+    // --- ADD THE LINES HERE ---
+    const commentBtn = item.querySelector(`#comment-btn-${err.id}`);
+    if (commentBtn) {
+        if (userCommentText || userCommentId) {
+            commentBtn.classList.add('hidden');
+        } else {
+            commentBtn.classList.remove('hidden');
+        }
+    }
+    // --------------------------
 
     // 2. CURRENT USER'S EDITABLE REPLY BOX
-    // Rendered only for the active logged-in user to write or edit their own comment
+    const showUserInput = Boolean(userCommentId) || forceShowInput;
+
     if (showUserInput) {
         listHtml += `
-            <div id="user-comment-zone-${err.id}" class="saved-comment-card ${inputCardClass} p-1.5 rounded shadow-2xs">
+            <div id="user-comment-zone-${err.id}" class="saved-comment-card ${inputCardClass} p-1 rounded">
                 <div class="mb-0.5">
                     <span class="text-xs italic">
                         <span class="font-bold saturate-75 opacity-90 ${currentTextClass}">${currentFirst}</span>
@@ -659,6 +655,8 @@ function renderCommentsSync(err, item, forceShowInput = false) {
         `;
     }
 
+    // Ensure list container has no divide-y classes or borders
+    commentsList.className = "space-y-1 max-h-40 overflow-y-auto text-xs";
     commentsList.innerHTML = listHtml;
 
     const commentInput = commentsList.querySelector(`#user-comment-input-${err.id}`);
@@ -1188,9 +1186,25 @@ errorsToRender.forEach((err, index) => {
 
         const textHexOrClass = creatorColors.bg.replace(/^bg-/, 'text-');
 
+        const rawUploader = getMapUploader(err);
         const fixerNorm = normUser(err.fixed_by);
         const uploaderNorm = normUser(getMapUploader(err));
-        const isFixedByNonUploader = isFixed && fixerNorm && (fixerNorm !== uploaderNorm);
+
+        // Shows 'fixed by' only if fixed by someone who isn't the group creator
+        const isFixedByNonUploader = isFixed && Boolean(fixerNorm) && Boolean(uploaderNorm) && (fixerNorm !== uploaderNorm);
+
+        // Debug Logging for Fixed Cards
+        if (isFixed) {
+            console.log(`[Card #${err.error_number || err.id} Debug]`, {
+                fixedByRaw: err.fixed_by,
+                fixerNorm: fixerNorm,
+                mapUploaderRaw: rawUploader,
+                uploaderNorm: uploaderNorm,
+                windowCurrentMap: window.currentMap || null,
+                windowCurrentGroup: window.currentGroup || null,
+                isFixedByNonUploaderVerdict: isFixedByNonUploader
+            });
+        }
 
         let displayCreator = '';
 
@@ -1300,11 +1314,11 @@ errorsToRender.forEach((err, index) => {
                         </button>
                         ` : ''}
 
-                        <button id="comment-btn-${err.id}" type="button" title="Add or view comments" class="p-1 rounded border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 flex items-center justify-center cursor-pointer">
+                        <button id="comment-btn-${err.id}" type="button" title="Add a comment" class="p-1 rounded border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 flex items-center justify-center cursor-pointer">
                             <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                         </button>
 
-                        <button id="zoom-btn-${err.id}" type="button" title="Zoom to issue" class="p-1 rounded border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 flex items-center justify-center cursor-pointer">
+                        <button id="zoom-btn-${err.id}" type="button" title="Zoom to Issue" class="p-1 rounded border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 flex items-center justify-center cursor-pointer">
                             <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 1 1 -14 0a7 7 0 0 1 14 0zM10 7v6m-3-3h6"/></svg>
                         </button>
                     </div>
@@ -1405,30 +1419,29 @@ errorsToRender.forEach((err, index) => {
 
         renderCommentsSync(err, item, false);
 
-        if (commentBtn && commentsDrawer) {
+        // Hide comment button if current user already has a comment
+        const currentIdent = getCurrentUserIdentifierSync();
+        const currentNorm = typeof normUser === 'function' ? normUser(currentIdent) : (currentIdent || '').toLowerCase().trim().split('@')[0];
+        const cardComments = (window.activeComments && window.activeComments[err.id]) || [];
+        const userHasCommented = cardComments.some(c => {
+            const authorNorm = typeof normUser === 'function' ? normUser(c.created_by) : (c.created_by || '').toLowerCase().trim().split('@')[0];
+            return authorNorm && authorNorm === currentNorm;
+        });
+
+        if (commentBtn) {
+            if (userHasCommented) {
+                commentBtn.classList.add('hidden');
+            } else {
+                commentBtn.classList.remove('hidden');
+            }
+
             commentBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const isCurrentlyOpen = window.openCommentDrawers.has(err.id) || window.openCommentDrawers.has(String(err.id));
-
-                if (isCurrentlyOpen) {
-                    const input = commentsDrawer.querySelector(`#user-comment-input-${err.id}`);
-                    const hasSavedComments = commentsDrawer.querySelectorAll('.saved-comment-card').length > 1;
-                    
-                    if (!input || !input.value.trim()) {
-                        if (!hasSavedComments) {
-                            window.openCommentDrawers.delete(err.id);
-                            window.openCommentDrawers.delete(String(err.id));
-                            commentsDrawer.classList.add('hidden');
-                            return;
-                        }
-                    }
-                }
-
                 window.openCommentDrawers.add(err.id);
-                commentsDrawer.classList.remove('hidden');
+                if (commentsDrawer) commentsDrawer.classList.remove('hidden');
                 renderCommentsSync(err, item, true);
 
-                const commentInput = commentsDrawer.querySelector(`#user-comment-input-${err.id}`);
+                const commentInput = commentsDrawer?.querySelector(`#user-comment-input-${err.id}`);
                 if (commentInput) commentInput.focus();
             });
         }
@@ -1438,7 +1451,7 @@ errorsToRender.forEach((err, index) => {
         const fileInput = item.querySelector(`#file-input-${err.id}`);
         const attachmentsContainer = item.querySelector(`#attachments-container-${err.id}`);
 
-const renderAttachmentsSync = (errObj, container) => {
+        const renderAttachmentsSync = (errObj, container) => {
             if (!container || !errObj) return;
             const files = (window.activeAttachments && window.activeAttachments[errObj.id]) || [];
             const isFixed = errObj.status === 'fixed';
@@ -1456,11 +1469,12 @@ const renderAttachmentsSync = (errObj, container) => {
                             <div class="w-full flex items-center justify-center py-0.5 ${imgBgClass}">
                                 <div class="relative inline-flex items-center justify-center max-w-full">
                                     <img src="${f.file_url}" data-src="${f.file_url}" alt="Attachment" class="preview-image-el max-w-full max-h-52 object-contain rounded hover:opacity-95 transition cursor-pointer block" />
-                                    ${canEdit ? `<button data-file-id="${f.id}" type="button" title="Delete attachment" class="delete-file-btn absolute left-full top-1/2 -translate-y-1/2 ml-1 bg-white/30 hover:bg-white/80 rounded px-1.5 py-0.5 text-xs text-red-500 hover:text-red-700 font-bold cursor-pointer transition shadow-2xs backdrop-blur-2xs z-10">✕</button>` : ''}
+                                    ${canEdit ? `<button data-file-id="${f.id}" type="button" title="Delete attachment" class="delete-image-btn absolute left-full top-1/2 -translate-y-1/2 ml-1 bg-white/30 hover:bg-white/80 rounded px-1.5 py-0.5 text-xs text-red-500 hover:text-red-700 font-bold cursor-pointer transition shadow-2xs backdrop-blur-2xs z-10">✕</button>` : ''}
                                 </div>
                             </div>
                         `;
                     } else {
+                        // Non-image attachments (Static 'X' with no background)
                         html += `
                             <div class="inline-flex items-center justify-between px-2 py-1 bg-slate-100 border border-slate-200 rounded text-xs font-semibold text-slate-700 shadow-2xs w-full">
                                 <a href="${f.file_url}" target="_blank" rel="noopener noreferrer" class="hover:underline truncate max-w-[200px] flex items-center space-x-1" title="${f.file_name}">
@@ -1474,23 +1488,28 @@ const renderAttachmentsSync = (errObj, container) => {
                 });
                 container.innerHTML = html;
 
-                // Adjust button position: Default middle-right, Fallback to top-right on-image if overflowing card bounds
+                // Adjust button position ONLY for images
                 const adjustDeleteButtons = () => {
                     const card = container.closest('[data-card-issue-id]') || container;
                     if (!card) return;
                     const cardRect = card.getBoundingClientRect();
 
-                    container.querySelectorAll('.delete-file-btn').forEach(btn => {
-                        // Reset to default position
-                        btn.classList.add('left-full', 'top-1/2', '-translate-y-1/2', 'ml-1');
-                        btn.classList.remove('top-1', 'right-1');
+                    container.querySelectorAll('.delete-image-btn').forEach(btn => {
+                        const imgWrap = btn.closest('.relative');
+                        if (!imgWrap) return;
+                        const img = imgWrap.querySelector('img');
+                        if (!img) return;
 
-                        // Check if default placement overflows card bounds
+                        // Reset to default middle-right side position
+                        btn.classList.add('left-full', 'top-1/2', '-translate-y-1/2', 'ml-1', 'bg-white/30');
+                        btn.classList.remove('top-1', 'right-1', 'bg-white/50');
+
                         const btnRect = btn.getBoundingClientRect();
-                        if (btnRect.right > cardRect.right - 10) {
-                            // Apply fallback position
-                            btn.classList.remove('left-full', 'top-1/2', '-translate-y-1/2', 'ml-1');
-                            btn.classList.add('top-1', 'right-1');
+                        
+                        // Fallback to top-right on-image if it overflows OR if the image takes up the full card width
+                        if (btnRect.right > cardRect.right - 8 || img.clientWidth > cardRect.width - 32) {
+                            btn.classList.remove('left-full', 'top-1/2', '-translate-y-1/2', 'ml-1', 'bg-white/30');
+                            btn.classList.add('top-1', 'right-1', 'bg-white/50');
                         }
                     });
                 };
@@ -1515,9 +1534,9 @@ const renderAttachmentsSync = (errObj, container) => {
                     });
                 });
 
-                // Handle attachment deletion
+                // Handle attachment deletion (Targets both file and image delete buttons safely)
                 if (canEdit) {
-                    container.querySelectorAll('.delete-file-btn').forEach(btn => {
+                    container.querySelectorAll('.delete-file-btn, .delete-image-btn').forEach(btn => {
                         btn.addEventListener('mousedown', (e) => e.preventDefault());
                         btn.addEventListener('click', async (e) => {
                             e.stopPropagation();

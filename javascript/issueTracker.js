@@ -92,6 +92,74 @@ if (mapViewport) {
         }
     });
 }
+// TIFF STUFF (Flashing Fixed)
+if (typeof window.tiffCache === 'undefined') window.tiffCache = {};
+
+async function loadTiffImage(imgEl, tiffUrl, onComplete) {
+    if (!tiffUrl || !imgEl) return;
+
+    // Return immediately if already cached in memory
+    if (window.tiffCache[tiffUrl]) {
+        const cachedData = window.tiffCache[tiffUrl];
+        if (imgEl.src !== cachedData) {
+            imgEl.src = cachedData;
+            imgEl.setAttribute('data-src', cachedData);
+            imgEl.classList.remove('opacity-40', 'animate-pulse');
+        }
+        if (onComplete) onComplete();
+        return;
+    }
+
+    // Load UTIF decoder library dynamically if missing
+    if (typeof UTIF === 'undefined') {
+        try {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.min.js';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        } catch (err) {
+            console.error('[TIFF Loader] Failed to load UTIF.js:', err);
+            return;
+        }
+    }
+
+    try {
+        const response = await fetch(tiffUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const ifds = UTIF.decode(arrayBuffer);
+
+        if (ifds && ifds.length > 0) {
+            const firstPage = ifds[0];
+            UTIF.decodeImage(arrayBuffer, firstPage);
+            const rgba = UTIF.toRGBA8(firstPage);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = firstPage.width;
+            canvas.height = firstPage.height;
+            const ctx = canvas.getContext('2d');
+            const imgData = ctx.createImageData(firstPage.width, firstPage.height);
+            imgData.data.set(rgba);
+            ctx.putImageData(imgData, 0, 0);
+
+            const pngUrl = canvas.toDataURL('image/png');
+
+            // Store in global cache for 0ms subsequent renders
+            window.tiffCache[tiffUrl] = pngUrl;
+
+            imgEl.src = pngUrl;
+            imgEl.setAttribute('data-src', pngUrl);
+            imgEl.classList.remove('opacity-40', 'animate-pulse');
+
+            if (onComplete) onComplete();
+        }
+    } catch (e) {
+        console.error('[TIFF Decode Error]', e);
+    }
+}
+
 // Lightweight modal viewer (Restored backdrop blur, neutral X button off image)
 function openImageModal(imgSrc) {
     let modal = document.getElementById('custom-image-modal');
@@ -1451,7 +1519,7 @@ errorsToRender.forEach((err, index) => {
         const fileInput = item.querySelector(`#file-input-${err.id}`);
         const attachmentsContainer = item.querySelector(`#attachments-container-${err.id}`);
 
-        const renderAttachmentsSync = (errObj, container) => {
+const renderAttachmentsSync = (errObj, container) => {
             if (!container || !errObj) return;
             const files = (window.activeAttachments && window.activeAttachments[errObj.id]) || [];
             const isFixed = errObj.status === 'fixed';
@@ -1462,33 +1530,43 @@ errorsToRender.forEach((err, index) => {
                 container.classList.remove('hidden');
                 let html = '';
                 files.forEach(f => {
-                    const isImage = /\.(png|jpe?g|tiff?|webp|gif|svg)$/i.test(f.file_name || '') || (f.file_url && f.file_url.match(/\.(png|jpe?g|tiff?|webp|gif|svg)/i));
+                    const fileName = f.file_name || '';
+                    const fileUrl = f.file_url || '';
+
+                    const isTiff = /\.(tiff?)$/i.test(fileName) || fileUrl.match(/\.(tiff?)/i);
+                    const isImage = /\.(png|jpe?g|webp|gif|svg|tiff?)$/i.test(fileName) || fileUrl.match(/\.(png|jpe?g|webp|gif|svg|tiff?)/i);
 
                     if (isImage) {
+                        const cachedData = isTiff && window.tiffCache && window.tiffCache[fileUrl];
+                        const initialSrc = isTiff ? (cachedData || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=') : fileUrl;
+                        const isPendingTiff = isTiff && !cachedData;
+
+                        // Hardcode initial button position for TIFFs to top-right on-image
+                        const initialBtnPos = isTiff ? 'top-1 right-1 bg-white/50' : 'left-full top-1/2 -translate-y-1/2 ml-1 bg-white/30';
+
                         html += `
                             <div class="w-full flex items-center justify-center py-0.5 ${imgBgClass}">
                                 <div class="relative inline-flex items-center justify-center max-w-full">
-                                    <img src="${f.file_url}" data-src="${f.file_url}" alt="Attachment" class="preview-image-el max-w-full max-h-52 object-contain rounded hover:opacity-95 transition cursor-pointer block" />
-                                    ${canEdit ? `<button data-file-id="${f.id}" type="button" title="Delete attachment" class="delete-image-btn absolute left-full top-1/2 -translate-y-1/2 ml-1 bg-white/30 hover:bg-white/80 rounded px-1.5 py-0.5 text-xs text-red-500 hover:text-red-700 font-bold cursor-pointer transition shadow-2xs backdrop-blur-2xs z-10">✕</button>` : ''}
+                                    <img src="${initialSrc}" data-src="${fileUrl}" data-tiff="${isTiff ? 'true' : 'false'}" alt="Attachment" class="preview-image-el ${isPendingTiff ? 'opacity-40 animate-pulse bg-slate-200 min-h-[100px]' : ''} max-w-full max-h-52 object-contain rounded hover:opacity-95 transition cursor-pointer block" />
+                                    ${canEdit ? `<button data-file-id="${f.id}" type="button" title="Delete attachment" class="delete-image-btn absolute ${initialBtnPos} hover:bg-white/80 rounded px-1.5 py-0.5 text-xs text-red-500 hover:text-red-700 font-bold cursor-pointer transition shadow-2xs backdrop-blur-2xs z-10">✕</button>` : ''}
                                 </div>
                             </div>
                         `;
                     } else {
-                        // Non-image attachments (Static 'X' with no background)
                         html += `
-                            <div class="inline-flex items-center justify-between px-2 py-1 bg-slate-100 border border-slate-200 rounded text-xs font-semibold text-slate-700 shadow-2xs w-full">
-                                <a href="${f.file_url}" target="_blank" rel="noopener noreferrer" class="hover:underline truncate max-w-[200px] flex items-center space-x-1" title="${f.file_name}">
+                            <div class="flex items-center justify-between px-2 py-1 bg-slate-100 hover:bg-slate-200/70 border border-slate-200 rounded text-xs font-semibold text-slate-700 shadow-2xs w-full transition">
+                                <a href="${fileUrl}" target="_blank" rel="noopener noreferrer" class="flex-1 min-w-0 flex items-center space-x-1.5 py-0.5 no-underline" title="${fileName}">
                                     <span>📄</span>
-                                    <span class="truncate">${f.file_name}</span>
+                                    <span class="truncate">${fileName}</span>
                                 </a>
-                                ${canEdit ? `<button data-file-id="${f.id}" type="button" class="delete-file-btn text-xs text-red-400 hover:text-red-600 font-bold cursor-pointer transition px-1">✕</button>` : ''}
+                                ${canEdit ? `<button data-file-id="${f.id}" type="button" title="Delete attachment" class="delete-file-btn text-xs text-red-400 hover:text-red-600 font-bold cursor-pointer transition px-1 ml-1 shrink-0 z-10">✕</button>` : ''}
                             </div>
                         `;
                     }
                 });
                 container.innerHTML = html;
 
-                // Adjust button position ONLY for images
+                // Adjust delete buttons based on image rendered width
                 const adjustDeleteButtons = () => {
                     const card = container.closest('[data-card-issue-id]') || container;
                     if (!card) return;
@@ -1500,13 +1578,19 @@ errorsToRender.forEach((err, index) => {
                         const img = imgWrap.querySelector('img');
                         if (!img) return;
 
-                        // Reset to default middle-right side position
+                        // Hardcode TIFFs to ALWAYS use top-right on-image positioning
+                        if (img.getAttribute('data-tiff') === 'true') {
+                            btn.classList.remove('left-full', 'top-1/2', '-translate-y-1/2', 'ml-1', 'bg-white/30');
+                            btn.classList.add('top-1', 'right-1', 'bg-white/50');
+                            return;
+                        }
+
+                        // Standard images dynamic overflow check
                         btn.classList.add('left-full', 'top-1/2', '-translate-y-1/2', 'ml-1', 'bg-white/30');
                         btn.classList.remove('top-1', 'right-1', 'bg-white/50');
 
                         const btnRect = btn.getBoundingClientRect();
                         
-                        // Fallback to top-right on-image if it overflows OR if the image takes up the full card width
                         if (btnRect.right > cardRect.right - 8 || img.clientWidth > cardRect.width - 32) {
                             btn.classList.remove('left-full', 'top-1/2', '-translate-y-1/2', 'ml-1', 'bg-white/30');
                             btn.classList.add('top-1', 'right-1', 'bg-white/50');
@@ -1514,27 +1598,36 @@ errorsToRender.forEach((err, index) => {
                     });
                 };
 
-                // Run positioning check immediately & when images finish loading
+                // Trigger TIFF decoding
+                container.querySelectorAll('img[data-tiff="true"]').forEach(imgEl => {
+                    const rawTiffUrl = imgEl.getAttribute('data-src');
+                    if (rawTiffUrl && !imgEl.src.startsWith('data:image/png')) {
+                        loadTiffImage(imgEl, rawTiffUrl, () => {
+                            adjustDeleteButtons();
+                        });
+                    }
+                });
+
+                // Initialize positioning
                 adjustDeleteButtons();
                 container.querySelectorAll('.preview-image-el').forEach(imgEl => {
                     if (!imgEl.complete) {
                         imgEl.addEventListener('load', adjustDeleteButtons);
                     }
 
-                    // Open modal ONLY when clicking the actual <img> tag
                     imgEl.addEventListener('click', (e) => {
                         e.stopPropagation();
                         e.preventDefault();
                         const imgSrc = imgEl.getAttribute('data-src');
+                        const cachedPng = window.tiffCache[imgSrc] || imgSrc;
                         if (typeof openImageModal === 'function') {
-                            openImageModal(imgSrc);
+                            openImageModal(cachedPng);
                         } else {
-                            window.open(imgSrc, '_blank');
+                            window.open(cachedPng, '_blank');
                         }
                     });
                 });
 
-                // Handle attachment deletion (Targets both file and image delete buttons safely)
                 if (canEdit) {
                     container.querySelectorAll('.delete-file-btn, .delete-image-btn').forEach(btn => {
                         btn.addEventListener('mousedown', (e) => e.preventDefault());

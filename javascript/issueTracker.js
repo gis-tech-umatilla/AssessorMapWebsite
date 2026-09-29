@@ -55,7 +55,87 @@ if (mapViewport) {
         }
     });
 }
+async function getCurrentUserIdentifier() {
+    // 1. Query active Supabase auth session
+    try {
+        if (typeof supabaseClient !== 'undefined' && supabaseClient.auth) {
+            const { data } = await supabaseClient.auth.getUser();
+            if (data?.user) {
+                const u = data.user;
+                if (u.email) return u.email.split('@')[0];
+                if (u.user_metadata?.full_name) return u.user_metadata.full_name;
+                if (u.user_metadata?.name) return u.user_metadata.name;
+            }
+        }
+    } catch (e) {}
 
+    // 2. Fallback to global user variables
+    const globUser = (typeof window.currentUser !== 'undefined' && window.currentUser) 
+        ? window.currentUser 
+        : (typeof currentUser !== 'undefined' ? currentUser : null);
+
+    if (globUser) {
+        if (typeof globUser === 'string') return globUser.includes('@') ? globUser.split('@')[0] : globUser;
+        if (globUser.email) return globUser.email.split('@')[0];
+        if (globUser.user_metadata?.full_name) return globUser.user_metadata.full_name;
+    }
+
+    // 3. Fallback to header user badge element text
+    const badge = document.getElementById('userBadge');
+    if (badge && badge.innerText && badge.innerText.trim()) {
+        const text = badge.innerText.trim();
+        return text.includes('@') ? text.split('@')[0] : text;
+    }
+
+    return '';
+}
+
+function getMapUploader() {
+    const m = (typeof window.currentMap !== 'undefined' && window.currentMap) 
+           || (typeof currentMap !== 'undefined' && currentMap)
+           || (typeof window.activeMap !== 'undefined' && window.activeMap)
+           || null;
+    if (!m) return '';
+    return m.uploaded_by || m.created_by || m.uploader || m.user_email || '';
+}
+
+function normUser(val) {
+    if (!val) return '';
+    return String(val).toLowerCase().trim().split('@')[0];
+}
+
+function formatDisplayName(identifier) {
+    if (!identifier) return '';
+    const raw = identifier.split('@')[0].split('.')[0].toLowerCase();
+    return raw === 'mckenzie' ? 'McKenzie' : raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+function canEditIssue(err) {
+    if (!err || !err.created_by) return true;
+
+    let currentIdent = '';
+    const globUser = (typeof window.currentUser !== 'undefined' && window.currentUser) 
+        ? window.currentUser 
+        : (typeof currentUser !== 'undefined' ? currentUser : null);
+
+    if (globUser) {
+        if (typeof globUser === 'string') currentIdent = globUser;
+        else if (globUser.email) currentIdent = globUser.email;
+        else if (globUser.user_metadata?.full_name) currentIdent = globUser.user_metadata.full_name;
+    }
+
+    if (!currentIdent) {
+        const badge = document.getElementById('userBadge');
+        if (badge && badge.innerText) currentIdent = badge.innerText.trim();
+    }
+
+    if (!currentIdent) return true;
+
+    const userNorm = currentIdent.toLowerCase().trim().split('@')[0];
+    const creatorNorm = err.created_by.toLowerCase().trim().split('@')[0];
+
+    return userNorm === creatorNorm;
+}
 // Popover Logic
 function triggerIssuePopover(clickEvent, err) {
     if (!floatingPopover) return;
@@ -82,8 +162,20 @@ function triggerIssuePopover(clickEvent, err) {
         popoverBadge.className = `rounded-full w-5 h-5 text-[10px] flex items-center justify-center font-bold ${isFixed ? 'bg-emerald-600' : 'bg-red-600'}`;
         popoverBadge.innerText = pinNum;
     }
+    const fixerNorm = normUser(err.fixed_by);
+    const uploaderNorm = normUser(getMapUploader());
+    const isFixedByNonUploader = isFixed && fixerNorm && uploaderNorm && (fixerNorm !== uploaderNorm);
+
     if (popoverTitle) {
-        popoverTitle.innerText = `${typeLabel} ${err.created_by ? `(${err.created_by})` : ''}`;
+        let titleStr = typeLabel;
+        if (err.created_by) {
+            titleStr += ` (by ${formatDisplayName(err.created_by)}`;
+            if (isFixedByNonUploader) {
+                titleStr += ` fixed by ${formatDisplayName(err.fixed_by)}`;
+            }
+            titleStr += `)`;
+        }
+        popoverTitle.innerText = titleStr;
     }
     
     const screenInput = document.getElementById(`input-${err.id}`);
@@ -151,8 +243,10 @@ function hideIssuePopover() {
 
 // Database Actions
 async function saveInlineDescription(pinId, value) {
-    const targetVal = value.trim();
     const localErr = activeErrors.find(e => e.id === pinId);
+    if (localErr && !canEditIssue(localErr)) return;
+
+    const targetVal = value.trim();
     if (localErr) localErr.description = targetVal;
 
     await supabaseClient.from('map_errors').update({ description: targetVal }).eq('id', pinId);
@@ -170,7 +264,30 @@ async function saveInlineLayer(pinId, selectedLayer) {
 
 async function togglePinStatus(pinId, currentStatus) {
     const nextStatus = currentStatus === 'fixed' ? 'open' : 'fixed';
-    await supabaseClient.from('map_errors').update({ status: nextStatus }).eq('id', pinId);
+    
+    let fixerIdent = null;
+    if (nextStatus === 'fixed') {
+        fixerIdent = await getCurrentUserIdentifier();
+    }
+
+    const payload = { 
+        status: nextStatus,
+        fixed_by: nextStatus === 'fixed' ? (fixerIdent || 'Unknown') : null
+    };
+
+    const localErr = activeErrors.find(e => e.id === pinId);
+    if (localErr) {
+        localErr.status = nextStatus;
+        localErr.fixed_by = payload.fixed_by;
+    }
+
+    const { error } = await supabaseClient.from('map_errors').update(payload).eq('id', pinId);
+
+    if (error) {
+        console.warn('[Issue Tracker] Update with fixed_by failed, falling back to status update:', error.message);
+        await supabaseClient.from('map_errors').update({ status: nextStatus }).eq('id', pinId);
+    }
+
     fetchPins();
 }
 
@@ -626,9 +743,10 @@ function renderUI() {
 
     let inputToFocus = null;
 
-    errorsToRender.forEach((err, index) => {
+errorsToRender.forEach((err, index) => {
         const pinNumber = err.error_number || '?';
         const isFixed = err.status === 'fixed';
+        const userCanEdit = canEditIssue(err);
         
         const cardColorClass = isFixed ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800';
         const badgeColorClass = isFixed ? 'bg-emerald-600' : 'bg-red-600';
@@ -656,12 +774,28 @@ function renderUI() {
 
         const textHexOrClass = creatorColors.bg.replace(/^bg-/, 'text-');
 
-        const displayCreator = creatorPrefix ? `
+        let displayCreator = creatorPrefix ? `
             <span class="text-xs italic">
                 <span class="text-slate-400 font-normal">by</span> 
                 <span class="font-bold saturate-75 opacity-90 ${textHexOrClass}">${formattedFirstName}</span>
             </span>
         ` : '';
+
+        const fixerNorm = normUser(err.fixed_by);
+        const uploaderNorm = normUser(getMapUploader());
+        const isFixedByNonUploader = isFixed && fixerNorm && uploaderNorm && (fixerNorm !== uploaderNorm);
+
+        if (isFixedByNonUploader) {
+            const formattedFixer = formatDisplayName(err.fixed_by);
+            const fixerColors = getUserColorStyle(err.fixed_by);
+            const fixerTextClass = fixerColors.bg.replace(/^bg-/, 'text-');
+            displayCreator += `
+                <span class="text-xs italic ml-1">
+                    <span class="text-slate-400 font-normal">fixed by</span> 
+                    <span class="font-bold saturate-75 opacity-90 ${fixerTextClass}">${formattedFixer}</span>
+                </span>
+            `;
+        }
         
         let item = sidebarList.querySelector(`[data-card-issue-id="${err.id}"]`);
         const isNewCard = !item;
@@ -707,7 +841,7 @@ function renderUI() {
         item.querySelector('.creator-badge').innerHTML = displayCreator;
 
         const deleteBtn = item.querySelector('.delete-pin-btn');
-        if (typeof activeTool !== 'undefined' && activeTool === 'view') {
+        if ((typeof activeTool !== 'undefined' && activeTool === 'view') || !userCanEdit) {
             deleteBtn.classList.add('hidden');
         } else {
             deleteBtn.classList.remove('hidden');
@@ -741,12 +875,22 @@ function renderUI() {
             inlineInput.value = err.description || '';
         }
 
+        if (userCanEdit) {
+            inlineInput.removeAttribute('readonly');
+            inlineInput.classList.remove('bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
+            inlineInput.classList.add('bg-white', 'text-slate-800');
+        } else {
+            inlineInput.setAttribute('readonly', 'true');
+            inlineInput.classList.add('bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
+            inlineInput.classList.remove('bg-white', 'text-slate-800');
+        }
+
         const badgeZone = item.querySelector(`.status-badge-zone`);
         badgeZone.replaceWith(badgeZone.cloneNode(true));
         item.querySelector(`.status-badge-zone`).addEventListener('click', () => togglePinStatus(err.id, err.status));
         
         if (err.tool_type === 'text') {
-            if (isNewCard) {
+            if (isNewCard && userCanEdit) {
                 inlineInput.addEventListener('input', () => {
                     const localErr = activeErrors.find(e => e.id === err.id);
                     if (localErr) localErr.description = inlineInput.value;
@@ -766,9 +910,9 @@ function renderUI() {
 
                 selectDropdown.addEventListener('change', (e) => { saveInlineLayer(err.id, e.target.value); });
             }
-            if (typeof newlyCreatedPinId !== 'undefined' && err.id === newlyCreatedPinId) inputToFocus = inlineInput;
+            if (userCanEdit && typeof newlyCreatedPinId !== 'undefined' && err.id === newlyCreatedPinId) inputToFocus = inlineInput;
         } else {
-            if (isNewCard) {
+            if (isNewCard && userCanEdit) {
                 inlineInput.addEventListener('keydown', (e) => {
                     e.stopPropagation();
                     if (e.key === 'Enter') inlineInput.blur();
@@ -776,11 +920,11 @@ function renderUI() {
                 inlineInput.addEventListener('keyup', (e) => e.stopPropagation());
                 inlineInput.addEventListener('blur', () => saveInlineDescription(err.id, inlineInput.value));
             }
-            if (typeof newlyCreatedPinId !== 'undefined' && err.id === newlyCreatedPinId) inputToFocus = inlineInput;
+            if (userCanEdit && typeof newlyCreatedPinId !== 'undefined' && err.id === newlyCreatedPinId) inputToFocus = inlineInput;
         }
 
         const finalDelBtn = item.querySelector('.delete-pin-btn');
-        if (isNewCard) {
+        if (isNewCard && userCanEdit) {
             finalDelBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 await supabaseClient.from('map_errors').delete().eq('id', err.id);

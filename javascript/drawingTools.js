@@ -171,11 +171,11 @@ async function finishPolygonCreation() {
 
     const payload = {
         map_id: currentMapId,
-        x_percent: firstPointClicked.x,
-        y_percent: firstPointClicked.y,
-        description: 'Enter Text Here...',
-        tool_type: 'text',
-        angle: angleDeg, // Directly save angle to Supabase column
+        x_percent: startPt.x,
+        y_percent: startPt.y,
+        description: '',
+        tool_type: 'shape',
+        geometry_data: geometryString,
         status: 'open',
         error_number: targetNum,
         created_by: emailPrefix,
@@ -254,11 +254,11 @@ document.querySelectorAll('.tool-btn').forEach(btn => {
 
         if (toolHint) {
             if (activeTool === 'view') toolHint.innerText = "Viewing / Pan-Zoom";
-            else if (activeTool === 'dot') toolHint.innerText = "Place Point";
+            else if (activeTool === 'point') toolHint.innerText = "Place Point";
             else if (activeTool === 'text') toolHint.innerText = "Type in Right Sidebar to Insert Text";
             else if (activeTool === 'circle') toolHint.innerText = "Click Center, then Click Radius";
             else if (activeTool === 'shape') toolHint.innerText = "Click points. Double-click or click start point to finish polygon.";
-            else if (activeTool === 'highlighter') toolHint.innerText = "Click start and end to highlight area";
+            else if (activeTool === 'highlight') toolHint.innerText = "Click start and end to highlight area";
             else toolHint.innerText = "Click The Start And End";
         }
        
@@ -298,7 +298,7 @@ window.handleMapClick = async function(e, mapCoords) {
         if (userBadge && userBadge.innerText) emailPrefix = userBadge.innerText.split('@')[0];
     }
 
-    if (activeTool === 'dot') {
+    if (activeTool === 'point') {
         // SINGLE-CLICK POINT PLACEMENT
         const targetNum = calculateNextAvailableErrorNumber();
         const temporaryId = 'temp-' + Date.now();
@@ -400,13 +400,13 @@ window.handleMapClick = async function(e, mapCoords) {
 
             if (toolHint) toolHint.innerText = "Click to set text location";
         }
-} else if (activeTool === 'line' || activeTool === 'dash' || activeTool === 'arrow' || activeTool === 'circle' || activeTool === 'highlighter') {
+} else if (activeTool === 'line' || activeTool === 'dash' || activeTool === 'arrow' || activeTool === 'circle' || activeTool === 'highlight') {
         if (!firstPointClicked) {
             firstPointClicked = { x: xPercent, y: yPercent };
             if (toolHint) {
                 toolHint.innerText = activeTool === 'circle' 
                     ? "Center set! Click outer edge to set radius." 
-                    : activeTool === 'highlighter' 
+                    : activeTool === 'highlight' 
                     ? "Start set! Click where highlight ends."
                     : "Start Set! Click Where shape Should End.";
             }
@@ -539,15 +539,15 @@ if (vectorDrawingOverlay) {
             : fallbackSizes[sizeKey];
         const strokeWidthVal = Math.round(baseSize * (8 / 18));
 
-        // 0. POINT / DOT TOOLTIP
-        if (activeTool === 'dot') {
+        // 0. POINT TOOLTIP
+        if (activeTool === 'point') {
             updateCursorTooltip(e, "Click to place point");
         }
 
-        // 1. LINE / DASH / ARROW / HIGHLIGHTER LIVE PREVIEW
-        else if (activeTool === 'line' || activeTool === 'dash' || activeTool === 'arrow' || activeTool === 'highlighter') {
+        // 1. LINE / DASH / ARROW / HIGHLIGHT LIVE PREVIEW
+        else if (activeTool === 'line' || activeTool === 'dash' || activeTool === 'arrow' || activeTool === 'highlight') {
             if (firstPointClicked) {
-                updateCursorTooltip(e, activeTool === 'highlighter' ? "Click to finish highlight" : "Click to set end point");
+                updateCursorTooltip(e, activeTool === 'highlight' ? "Click to finish highlight" : "Click to set end point");
 
                 let liveLine = document.getElementById('temp-live-line');
                 if (!liveLine) {
@@ -565,7 +565,7 @@ if (vectorDrawingOverlay) {
                 liveLine.setAttribute('x1', startX); liveLine.setAttribute('y1', startY);
                 liveLine.setAttribute('x2', endX); liveLine.setAttribute('y2', endY);
 
-                if (activeTool === 'highlighter') {
+                if (activeTool === 'highlight') {
                     const highlightWidth = strokeWidthVal * 3.5;
                     liveLine.setAttribute('stroke', '#dc2626');
                     liveLine.setAttribute('stroke-opacity', '0.3');
@@ -589,7 +589,7 @@ if (vectorDrawingOverlay) {
                     else liveLine.removeAttribute('marker-end');
                 }
             } else {
-                updateCursorTooltip(e, activeTool === 'highlighter' ? "Click start of highlight" : "Click to set start point");
+                updateCursorTooltip(e, activeTool === 'highlight' ? "Click start of highlight" : "Click to set start point");
             }
         }
 
@@ -759,15 +759,15 @@ if (vectorDrawingOverlay) {
         }
 
         const toolKeyMap = {
-            '1': 'tool-view',        // 1: View Map
-            '2': 'tool-dot',         // 2: Point
-            '3': 'tool-line',        // 3: Solid Line
-            '4': 'tool-dash',        // 4: Dashed Line
-            '5': 'tool-highlighter', // 5: Highlighter
+            '1': 'tool-view',        // 1: View
+            '2': 'tool-point',       // 2: Point
+            '3': 'tool-line',        // 3: Line
+            '4': 'tool-dash',        // 4: Dash
+            '5': 'tool-highlight',   // 5: Highlight
             '6': 'tool-arrow',       // 6: Arrow
             '7': 'tool-shape',       // 7: Polygon
             '8': 'tool-circle',      // 8: Circle
-            '9': 'tool-text'         // 9: Insert Text
+            '9': 'tool-text'         // 9: Text
         };
 
         if (toolKeyMap[e.key]) {

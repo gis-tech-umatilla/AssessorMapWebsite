@@ -14,7 +14,6 @@
     <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
     <!-- Custom CSS -->
     <link rel="stylesheet" href="style.css">
 </head>
@@ -66,19 +65,20 @@
             </div>
         </aside>
 
-        <!-- CENTER VIEWPORT -->
+
+<!-- CENTER VIEWPORT -->
         <div class="flex-1 relative bg-slate-300 overflow-hidden flex items-center justify-center min-w-0" id="mapViewport">
             <div class="absolute top-4 left-4 z-40 bg-[#4c5c68]/95 backdrop-blur text-white rounded-xl shadow-2xl p-2 flex flex-col space-y-1.5 border border-white/10 hidden" id="drawingToolbar">
                 <span class="text-xs font-extrabold text-slate-100 uppercase tracking-wider text-center border-b border-black/20 pb-1 mb-0.5">TOOLS</span>
-                <button id="tool-view" class="tool-btn px-3 py-1.5 bg-[#1985a1] text-white text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition shadow-md"><span>View Map</span></button>
-                <button id="tool-dot" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>·</span><span>Point</span></button>
-                <button id="tool-line" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>—</span><span>Solid Line</span></button>
-                <button id="tool-dash" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>---</span><span>Dashed Line</span></button>
-                <button id="tool-highlighter" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>🖍</span><span>Highlighter</span></button>
-                <button id="tool-arrow" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>⮕</span><span>Arrow</span></button>
-                <button id="tool-shape" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>⬡</span><span>Polygon</span></button>
-                <button id="tool-circle" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>◯</span><span>Circle</span></button>
-                <button id="tool-text" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span>ABC</span><span>Insert Text</span></button>
+                <button id="tool-view" class="tool-btn px-3 py-1.5 bg-[#1985a1] text-white text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition shadow-md"><span>View</span></button>
+                <button id="tool-point" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span class="text-lg leading-none">·</span><span>Point</span></button>
+                <button id="tool-line" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span class="text-lg leading-none">—</span><span>Line</span></button>
+                <button id="tool-dash" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span class="text-lg leading-none">┉</span><span>Dash</span></button>
+                <button id="tool-highlight" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span class="text-lg leading-none">🖍</span><span>Highlight</span></button>
+                <button id="tool-arrow" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span class="text-lg leading-none">⮕</span><span>Arrow</span></button>
+                <button id="tool-shape" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span class="text-lg leading-none">⬡</span><span>Polygon</span></button>
+                <button id="tool-circle" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span class="text-lg leading-none">⭘</span><span>Circle</span></button>
+                <button id="tool-text" class="tool-btn px-3 py-1.5 bg-black/20 hover:bg-black/30 text-left text-xs font-semibold rounded flex items-center space-x-2 cursor-pointer transition"><span class="text-sm leading-none">ᴀʙᴄ</span><span>Text</span></button>
 
                 <!-- SIZE SELECTOR PANEL -->
                 <div id="sizeSelectorPanel" class="mt-1 pt-2 border-t border-black/20 flex flex-col space-y-1.5 hidden">

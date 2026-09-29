@@ -65,7 +65,40 @@
 #sidebarList::-webkit-scrollbar-thumb:hover {
     background: rgba(0, 0, 0, 0.4);
 }
+/* Tone down backdrop */
+    .goverlay {
+        background: rgba(0, 0, 0, 0.5) !important;
+        backdrop-filter: blur(2px) !important;
+    }
 
+    /* Completely hide left/right navigation arrows */
+    .gnext,
+    .gprev,
+    .gnav-arrow {
+        display: none !important;
+    }
+
+    /* Remove white background box and padding */
+    .gslide-description,
+    .gdesc-inner,
+    .gslide-title,
+    .ginner-container,
+    .gslide-media,
+    .gslide-single-content {
+        background: transparent !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        border: none !important;
+    }
+
+    /* Clean shadow and curved corners on preview image */
+    .gslide-image img {
+        max-height: 90vh !important;
+        max-width: 90vw !important;
+        object-fit: contain !important;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5) !important;
+        border-radius: 8px !important;
+    }
 @media print {
     @page {
         size: letter landscape;

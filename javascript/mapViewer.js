@@ -1,4 +1,148 @@
-console.log('[MapViewer Debug] mapViewer.js loaded with L.svgOverlay engine.');
+// =================================================================
+// 🚀 ASSESSOR MAP QA PERFORMANCE PROFILER & LAG DEBUGGER
+// =================================================================
+window.QAProfiler = (function() {
+    // Configurable lag thresholds (in milliseconds)
+    const THRESHOLDS = {
+        WARN: 16,    // Anything > 16ms drops a 60fps frame
+        SLOW: 50,    // Anything > 50ms is a noticeable delay
+        FREEZE: 150  // Anything > 150ms feels frozen to the user
+    };
+
+    // Store history for summary reporting
+    const stats = {};
+
+    function logExecution(name, durationMs, details = '') {
+        if (!stats[name]) stats[name] = { count: 0, totalMs: 0, maxMs: 0, slowCount: 0 };
+        stats[name].count++;
+        stats[name].totalMs += durationMs;
+        stats[name].maxMs = Math.max(stats[name].maxMs, durationMs);
+        if (durationMs > THRESHOLDS.WARN) stats[name].slowCount++;
+
+        // Only log if it crosses the frame-drop threshold (> 16ms)
+        if (durationMs >= THRESHOLDS.WARN) {
+            let color = '#f59e0b'; // Amber (Warn)
+            let badge = '⚠️ SLOW';
+
+            if (durationMs >= THRESHOLDS.FREEZE) {
+                color = '#ef4444'; // Red (Freeze)
+                badge = '🔥 FREEZE';
+            } else if (durationMs >= THRESHOLDS.SLOW) {
+                color = '#f97316'; // Orange (Noticeable Lag)
+                badge = '🐢 LAG';
+            }
+
+            console.log(
+                `%c[QA Profiler] %c${badge}%c ${name} took %c${durationMs.toFixed(2)}ms%c ${details}`,
+                'color: #8b5cf6; font-weight: bold;',
+                `background: ${color}; color: #fff; font-weight: bold; padding: 2px 6px; border-radius: 4px;`,
+                'color: #e2e8f0; font-weight: bold;',
+                `color: ${color}; font-weight: bold; text-decoration: underline;`,
+                'color: #94a3b8; italic;'
+            );
+        }
+    }
+
+    // Wraps synchronous and asynchronous functions
+    function profileFunction(targetObj, fnName) {
+        if (!targetObj || typeof targetObj[fnName] !== 'function') return;
+        const originalFn = targetObj[fnName];
+
+        targetObj[fnName] = function(...args) {
+            const start = performance.now();
+            
+            try {
+                const result = originalFn.apply(this, args);
+                
+                if (result && typeof result.then === 'function') {
+                    return result.then(res => {
+                        const duration = performance.now() - start;
+                        logExecution(fnName, duration, '(async)');
+                        return res;
+                    }).catch(err => {
+                        const duration = performance.now() - start;
+                        logExecution(`${fnName} (failed)`, duration);
+                        throw err;
+                    });
+                }
+
+                const duration = performance.now() - start;
+                logExecution(fnName, duration);
+                return result;
+            } catch (err) {
+                const duration = performance.now() - start;
+                logExecution(`${fnName} (error)`, duration);
+                throw err;
+            }
+        };
+    }
+
+    // Detect browser-level Main Thread freezes (layout thrashing, heavy GC, style recalculations)
+    if (typeof PerformanceObserver !== 'undefined' && PerformanceObserver.supportedEntryTypes?.includes('longtask')) {
+        const observer = new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) {
+                console.warn(
+                    `%c[QA Profiler] 🚨 MAIN THREAD BLOCK%c Browser frozen for %c${entry.duration.toFixed(2)}ms%c`,
+                    'color: #ef4444; font-weight: bold;',
+                    'color: #f87171;',
+                    'color: #f87171; font-weight: bold; text-decoration: underline;',
+                    'color: #f87171;'
+                );
+            }
+        });
+        observer.observe({ entryTypes: ['longtask'] });
+    }
+
+    // Auto-patch key candidate functions in global window scope
+    function init() {
+        const targetFunctions = [
+            'renderUI',
+            'fetchPins',
+            'scheduleViewportPatch',
+            'loadActiveMap',
+            'highlightSelectedFeature',
+            'updatePopoverPosition',
+            'triggerIssuePopover',
+            'renderCommentsSync'
+        ];
+
+        targetFunctions.forEach(fnName => profileFunction(window, fnName));
+
+        console.log(
+            '%c[QA Profiler] Active! Monitoring functions & main-thread freezes...\nType QAProfiler.summary() in console at any time for aggregated statistics.',
+            'color: #10b981; font-weight: bold; font-size: 12px;'
+        );
+    }
+
+    if (document.readyState === 'complete') {
+        setTimeout(init, 500);
+    } else {
+        window.addEventListener('load', () => setTimeout(init, 500));
+    }
+
+    return {
+        summary() {
+            console.table(
+                Object.entries(stats).map(([fn, s]) => ({
+                    Function: fn,
+                    Calls: s.count,
+                    'Slow Calls (>16ms)': s.slowCount,
+                    'Avg Ms': (s.totalMs / s.count).toFixed(2),
+                    'Max Ms': s.maxMs.toFixed(2),
+                    'Total Ms': s.totalMs.toFixed(2)
+                }))
+            );
+        },
+        reset() {
+            Object.keys(stats).forEach(k => delete stats[k]);
+            console.log('[QA Profiler] Stats reset.');
+        }
+    };
+})();
+// Ensure PDF.js native worker is configured on the main thread
+if (typeof pdfjsLib !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
 
 // Safe Global State Declarations
 if (typeof window.leafletMap === 'undefined') window.leafletMap = null;
@@ -21,17 +165,15 @@ if (typeof window.initialCenterPoint === 'undefined') window.initialCenterPoint 
 if (typeof window.patchDebounceTimer === 'undefined') window.patchDebounceTimer = null;
 if (typeof window.activePatchTaskId === 'undefined') window.activePatchTaskId = 0;
 if (typeof window.activeRenderTask === 'undefined') window.activeRenderTask = null;
-if (typeof window.sheet1Bounds === 'undefined') window.sheet1Bounds = null;
 if (typeof window.sheet2Bounds === 'undefined') window.sheet2Bounds = null;
+if (typeof window.activePatchObjUrl === 'undefined') window.activePatchObjUrl = null;
 
 // DOM References
 var mapViewport = document.getElementById('mapViewport');
 var placeholderText = document.getElementById('placeholderText');
 var zoomControls = document.getElementById('zoomControls');
 var drawingToolbar = document.getElementById('drawingToolbar');
-
 var vectorDrawingOverlay = document.getElementById('vectorDrawingOverlay');
-var dotsContainer = document.getElementById('dotsContainer');
 
 // Protect Toolbar Stacking
 if (drawingToolbar) {
@@ -48,7 +190,6 @@ if (mapViewport && !mapViewport._wheelFilterBound) {
     mapViewport._wheelFilterBound = true;
     mapViewport.addEventListener('wheel', (e) => {
         if (!leafletMap || !currentMapBounds) return;
-
         const containerPoint = leafletMap.mouseEventToContainerPoint(e);
         const latLng = leafletMap.containerPointToLatLng(containerPoint);
         const mapBounds = L.latLngBounds(currentMapBounds);
@@ -56,14 +197,11 @@ if (mapViewport && !mapViewport._wheelFilterBound) {
         if (!mapBounds.contains(latLng)) {
             e.preventDefault();
             e.stopImmediatePropagation();
-            console.log('[MapViewer Debug] Wheel zoom blocked: Cursor outside map bounds.');
         }
     }, { capture: true, passive: false });
 }
 
-function adjustPinScaling() {
-    // Intentionally no-op: SVG overlay handles scaling natively
-}
+function adjustPinScaling() {}
 
 function hidePatchOverlay() {
     if (activeRenderTask) {
@@ -72,59 +210,69 @@ function hidePatchOverlay() {
     }
 
     if (patchOverlay && leafletMap) {
-        console.log('[MapViewer Debug] Removing viewport patch overlay layer.');
         leafletMap.removeLayer(patchOverlay);
         patchOverlay = null;
+        if (window.activePatchObjUrl) {
+            URL.revokeObjectURL(window.activePatchObjUrl);
+            window.activePatchObjUrl = null;
+        }
     }
     activePatchBounds = null;
     lastPatchZoom = null;
 }
 
-function scheduleViewportPatch() {
+// Keep track of active patch Object URL to revoke memory
+if (typeof window.activePatchObjUrl === 'undefined') window.activePatchObjUrl = null;
+
+let isPatchRendering = false;
+
+function scheduleViewportPatch(isMoving = false) {
     if (!leafletMap || !currentPage1 || !sheet1Bounds) return;
 
     const currentZoom = leafletMap.getZoom();
-
     if (currentZoom <= initialFitZoom + 0.15) {
         hidePatchOverlay();
         clearTimeout(patchDebounceTimer);
         return;
     }
 
-    if (patchOverlay && activePatchBounds && leafletMap) {
-        const visibleBounds = leafletMap.getBounds();
-        const zoomDiff = Math.abs(currentZoom - (lastPatchZoom || 0));
+    const visibleBounds = leafletMap.getBounds();
 
+    // If active patch already covers current screen space (plus 40% margin), keep it!
+    if (patchOverlay && activePatchBounds) {
+        const zoomDiff = Math.abs(currentZoom - (lastPatchZoom || 0));
         if (zoomDiff < 0.12 && activePatchBounds.contains(visibleBounds)) {
             return;
         }
     }
 
+    if (isPatchRendering) return;
+
     clearTimeout(patchDebounceTimer);
+
+    // Fast 100ms delay during slow floating / 30ms when gesture completes
+    const delay = isMoving ? 100 : 30;
+
     patchDebounceTimer = setTimeout(async () => {
+        if (isPatchRendering) return;
         const taskId = ++activePatchTaskId;
 
-        const visibleBounds = leafletMap.getBounds();
-        let south = visibleBounds.getSouth();
-        let north = visibleBounds.getNorth();
-        let west = visibleBounds.getWest();
-        let east = visibleBounds.getEast();
-
-        const h1 = sheet1Bounds[1][0];
-        const w1 = sheet1Bounds[1][1];
-
-        south = Math.max(0, Math.min(h1, south));
-        north = Math.max(0, Math.min(h1, north));
-        west = Math.max(0, Math.min(w1, west));
-        east = Math.max(0, Math.min(w1, east));
+        let south = Math.max(0, Math.min(sheet1Bounds[1][0], visibleBounds.getSouth()));
+        let north = Math.max(0, Math.min(sheet1Bounds[1][0], visibleBounds.getNorth()));
+        let west = Math.max(0, Math.min(sheet1Bounds[1][1], visibleBounds.getWest()));
+        let east = Math.max(0, Math.min(sheet1Bounds[1][1], visibleBounds.getEast()));
 
         if (east <= west || north <= south) {
             hidePatchOverlay();
             return;
         }
 
-        const padLng = (east - west) * 0.60;
-        const padLat = (north - south) * 0.60;
+        const h1 = sheet1Bounds[1][0];
+        const w1 = sheet1Bounds[1][1];
+
+        // 40% Cushion so slow floating stays sharp without triggering new renders constantly
+        const padLng = (east - west) * 0.40;
+        const padLat = (north - south) * 0.40;
 
         const cropWest = Math.max(0, west - padLng);
         const cropEast = Math.min(w1, east + padLng);
@@ -143,21 +291,15 @@ function scheduleViewportPatch() {
         const swPoint = leafletMap.latLngToContainerPoint(L.latLng(cropSouth, cropWest));
         const nePoint = leafletMap.latLngToContainerPoint(L.latLng(cropNorth, cropEast));
         const cropScreenPixelW = Math.abs(nePoint.x - swPoint.x);
-        const cropScreenPixelH = Math.abs(swPoint.y - nePoint.y);
 
         const dpr = window.devicePixelRatio || 1;
-        const qualityMultiplier = 1.5;
-        
-        const scaleX = (cropScreenPixelW / cropPdfW) * dpr * qualityMultiplier;
-        const scaleY = (cropScreenPixelH / cropPdfH) * dpr * qualityMultiplier;
-        let targetScale = Math.max(scaleX, scaleY);
-
-        targetScale = Math.max(2.5, targetScale);
+        let targetScale = Math.max(1.8, (cropScreenPixelW / cropPdfW) * dpr * 1.15);
 
         let patchPixelW = Math.round(cropPdfW * targetScale);
         let patchPixelH = Math.round(cropPdfH * targetScale);
 
-        const MAX_DIM = 4096;
+        // Cap to 1800px max dimension so PDF.js vector drawing completes in ~80ms
+        const MAX_DIM = 1800;
         if (patchPixelW > MAX_DIM || patchPixelH > MAX_DIM) {
             const clampRatio = Math.min(MAX_DIM / patchPixelW, MAX_DIM / patchPixelH);
             targetScale = targetScale * clampRatio;
@@ -173,10 +315,7 @@ function scheduleViewportPatch() {
         const renderViewport = currentPage1.getViewport({ scale: targetScale });
         const transformMatrix = [1, 0, 0, 1, -cropPdfX * targetScale, -cropPdfY * targetScale];
 
-        if (activeRenderTask) {
-            try { activeRenderTask.cancel(); } catch (e) {}
-            activeRenderTask = null;
-        }
+        isPatchRendering = true;
 
         try {
             activeRenderTask = currentPage1.render({ 
@@ -189,40 +328,87 @@ function scheduleViewportPatch() {
             activeRenderTask = null;
 
             if (taskId === activePatchTaskId) {
-                const patchBounds = [[cropSouth, cropWest], [cropNorth, cropEast]];
-                const patchDataUrl = patchCanvas.toDataURL('image/png');
+                const patchBlob = await new Promise(resolve => patchCanvas.toBlob(resolve, 'image/jpeg', 0.85));
+                if (patchBlob && taskId === activePatchTaskId) {
+                    const patchBounds = [[cropSouth, cropWest], [cropNorth, cropEast]];
+                    const newObjUrl = URL.createObjectURL(patchBlob);
 
-                activePatchBounds = L.latLngBounds([cropSouth, cropWest], [cropNorth, cropEast]);
-                lastPatchZoom = currentZoom;
+                    // Double-buffer swap (no flashing)
+                    const newPatchOverlay = L.imageOverlay(newObjUrl, patchBounds, { pane: 'tilePane', zIndex: 205 });
 
-                if (patchOverlay && leafletMap) {
-                    console.log(`[MapViewer Debug] Task #${taskId} seamlessly updating patch overlay bounds.`);
-                    patchOverlay.setBounds(patchBounds);
-                    patchOverlay.setUrl(patchDataUrl);
-                } else {
-                    console.log(`[MapViewer Debug] Task #${taskId} creating patch image overlay layer at pane 'tilePane' (zIndex 200).`);
-                    patchOverlay = L.imageOverlay(patchDataUrl, patchBounds, { pane: 'tilePane', zIndex: 200 }).addTo(leafletMap);
+                    newPatchOverlay.once('load', () => {
+                        if (taskId === activePatchTaskId) {
+                            if (patchOverlay && leafletMap) leafletMap.removeLayer(patchOverlay);
+                            if (window.activePatchObjUrl) URL.revokeObjectURL(window.activePatchObjUrl);
+
+                            patchOverlay = newPatchOverlay;
+                            patchOverlay.setZIndex(200);
+                            window.activePatchObjUrl = newObjUrl;
+
+                            activePatchBounds = L.latLngBounds([cropSouth, cropWest], [cropNorth, cropEast]);
+                            lastPatchZoom = currentZoom;
+                        } else {
+                            if (leafletMap) leafletMap.removeLayer(newPatchOverlay);
+                            URL.revokeObjectURL(newObjUrl);
+                        }
+                    });
+
+                    newPatchOverlay.addTo(leafletMap);
                 }
             }
-        } catch (err) {}
-    }, 200);
+        } catch (err) {
+        } finally {
+            isPatchRendering = false;
+        }
+    }, delay);
 }
 
 function resetToInitialView() {
     hidePatchOverlay();
     if (!leafletMap || !initialCenterPoint) return;
-
     leafletMap.setView(initialCenterPoint, initialFitZoom, { animate: false });
-    
     scheduleViewportPatch();
-    if (typeof hideIssuePopover === 'function') hideIssuePopover();
     if (typeof renderUI === 'function') renderUI();
 }
 
-async function loadActiveMap(mapObj) {
-    console.log('[MapViewer Debug] loadActiveMap invoked with object:', mapObj);
+// Velocity Tracking State
+let lastPanPos = null;
+let lastPanTime = 0;
+let currentPanVelocity = 0; // pixels per millisecond
+let throttledPatchTimer = null;
 
-    if (!mapObj || !mapObj.file_url) return;
+function updatePanVelocity() {
+    if (!leafletMap) return;
+
+    const now = performance.now();
+    const center = leafletMap.getCenter();
+    const currentPos = leafletMap.latLngToContainerPoint(center);
+
+    if (lastPanPos && lastPanTime) {
+        const dt = now - lastPanTime;
+        if (dt > 0) {
+            const distance = currentPos.distanceTo(lastPanPos); // Screen distance in pixels
+            currentPanVelocity = distance / dt; // px/ms
+        }
+    }
+
+    lastPanPos = currentPos;
+    lastPanTime = now;
+}
+
+function scheduleViewportPatchThrottled() {
+    if (throttledPatchTimer) return;
+
+    // Throttle low-velocity renders to max 1 per 250ms
+    throttledPatchTimer = setTimeout(() => {
+        throttledPatchTimer = null;
+        scheduleViewportPatch();
+    }, 250);
+}
+
+async function loadActiveMap(mapObj) {
+    const rawUrl = mapObj?.file_url || mapObj?.url || mapObj?.fileUrl;
+    if (!mapObj || !rawUrl) return;
 
     currentMapId = mapObj.id;
     if (typeof fetchMapsDirectory === 'function') fetchMapsDirectory();
@@ -243,11 +429,11 @@ async function loadActiveMap(mapObj) {
     }
 
     try {
-        const pdf = await pdfjsLib.getDocument(mapObj.file_url).promise;
+        const pdf = await pdfjsLib.getDocument(rawUrl).promise;
         const hasSecondPage = pdf.numPages >= 2;
 
         currentPage1 = await pdf.getPage(1);
-        const viewport1 = currentPage1.getViewport({ scale: 2.5 });
+        const viewport1 = currentPage1.getViewport({ scale: 1.8 });
 
         const canvas1 = document.createElement('canvas');
         canvas1.width = viewport1.width;
@@ -255,13 +441,16 @@ async function loadActiveMap(mapObj) {
         const context1 = canvas1.getContext('2d');
 
         await currentPage1.render({ canvasContext: context1, viewport: viewport1 }).promise;
-        const imgUrl1 = canvas1.toDataURL('image/png');
+
+        const blob1 = await new Promise(resolve => canvas1.toBlob(resolve, 'image/jpeg', 0.85));
+        const imgUrl1 = URL.createObjectURL(blob1);
 
         let imgUrl2 = null;
         let viewport2 = null;
+
         if (hasSecondPage) {
             currentPage2 = await pdf.getPage(2);
-            viewport2 = currentPage2.getViewport({ scale: 2.5 });
+            viewport2 = currentPage2.getViewport({ scale: 1.8 });
 
             const canvas2 = document.createElement('canvas');
             canvas2.width = viewport2.width;
@@ -269,7 +458,8 @@ async function loadActiveMap(mapObj) {
             const context2 = canvas2.getContext('2d');
 
             await currentPage2.render({ canvasContext: context2, viewport: viewport2 }).promise;
-            imgUrl2 = canvas2.toDataURL('image/png');
+            const blob2 = await new Promise(resolve => canvas2.toBlob(resolve, 'image/jpeg', 0.85));
+            imgUrl2 = URL.createObjectURL(blob2);
         } else {
             currentPage2 = null;
         }
@@ -311,18 +501,15 @@ async function loadActiveMap(mapObj) {
             zoomControl: false
         });
 
-        // CREATE A DEDICATED HIGH-LEVEL PANE FOR SVG ISSUES
         leafletMap.createPane('issuesPane');
-        leafletMap.getPane('issuesPane').style.zIndex = 650; // Sits above overlayPane (400) and tilePane (200)
+        leafletMap.getPane('issuesPane').style.zIndex = 650;
 
         sheet1BaseOverlay = L.imageOverlay(imgUrl1, sheet1Bounds, { pane: 'tilePane', zIndex: 100 }).addTo(leafletMap);
 
-        if (hasSecondPage && imgUrl2 && viewport2) {
-            const boundsSheet2 = [[0, w1 + gap], [viewport2.height, w1 + gap + viewport2.width]];
-            sheet2BaseOverlay = L.imageOverlay(imgUrl2, boundsSheet2, { pane: 'tilePane', zIndex: 100 }).addTo(leafletMap);
+        if (hasSecondPage && imgUrl2 && sheet2Bounds) {
+            sheet2BaseOverlay = L.imageOverlay(imgUrl2, sheet2Bounds, { pane: 'tilePane', zIndex: 100 }).addTo(leafletMap);
         }
 
-        // MOUNT SVG OVERLAY DIRECTLY TO LEAFLET 'issuesPane' (zIndex 650)
         const totalWidth = combinedBounds[1][1];
         const totalHeight = combinedBounds[1][0];
 
@@ -331,8 +518,6 @@ async function loadActiveMap(mapObj) {
             vectorDrawingOverlay.setAttribute('width', `${totalWidth}`);
             vectorDrawingOverlay.setAttribute('height', `${totalHeight}`);
             
-            console.log(`[MapViewer Debug] Attaching L.svgOverlay to issuesPane (Bounds: ${totalWidth}x${totalHeight})...`);
-
             svgOverlayLayer = L.svgOverlay(vectorDrawingOverlay, combinedBounds, {
                 pane: 'issuesPane',
                 interactive: true
@@ -345,30 +530,30 @@ async function loadActiveMap(mapObj) {
         initialCenterPoint = leafletMap.getCenter();
         leafletMap.setMinZoom(initialFitZoom);
 
-        leafletMap.on('zoomstart movestart', () => {
+        // -------------------------------------------------------------
+        // VELOCITY-AWARE MAP LISTENERS
+        // -------------------------------------------------------------
+        leafletMap.on('zoomstart', () => {
+            activePatchBounds = null;
             if (activeRenderTask) {
-                try { activeRenderTask.cancel(); } catch (err) {}
+                try { activeRenderTask.cancel(); } catch (e) {}
                 activeRenderTask = null;
             }
         });
 
-        leafletMap.on('zoomstart', () => {
-            activePatchBounds = null;
+        // Trigger patches during movement if map floats beyond the 40% cushion
+        leafletMap.on('move', () => {
+            scheduleViewportPatch(true);
         });
 
         leafletMap.on('zoomend moveend', () => {
-            scheduleViewportPatch();
-            if (typeof hideIssuePopover === 'function') hideIssuePopover();
-            if (typeof renderUI === 'function') renderUI();
+            scheduleViewportPatch(false);
         });
 
         leafletMap.on('click', (e) => {
-            console.log('[MapViewer Debug] Leaflet map clicked at LatLng:', e.latlng);
             if (typeof handleMapClick === 'function') {
                 const mapCoords = screenToMapCoords(e.originalEvent.clientX, e.clientY || e.originalEvent.clientY);
-                if (mapCoords) {
-                    handleMapClick(e.originalEvent, mapCoords);
-                }
+                if (mapCoords) handleMapClick(e.originalEvent, mapCoords);
             }
         });
 
@@ -389,8 +574,8 @@ async function loadActiveMap(mapObj) {
         if (typeof fetchPins === 'function') fetchPins();
 
     } catch (err) {
-        placeholderText.innerHTML = `<p class='text-red-400'>Error loading resource asset frame into Leaflet.</p>`;
-        console.error('[MapViewer Debug] Fatal exception encountered during Leaflet map load:', err);
+        placeholderText.innerHTML = `<p class='text-red-400'>Error loading PDF map.</p>`;
+        console.error('[MapViewer Debug] Exception loading PDF:', err);
     }
 }
 
@@ -399,13 +584,10 @@ function screenToMapCoords(clientX, clientY) {
     const containerPoint = leafletMap.mouseEventToContainerPoint({ clientX, clientY });
     const latLng = leafletMap.containerPointToLatLng(containerPoint);
 
-    // Validate that click is inside Sheet 1 or Sheet 2 bounds
     const inSheet1 = typeof sheet1Bounds !== 'undefined' && sheet1Bounds && L.latLngBounds(sheet1Bounds).contains(latLng);
     const inSheet2 = typeof sheet2Bounds !== 'undefined' && sheet2Bounds && L.latLngBounds(sheet2Bounds).contains(latLng);
 
-    if (!inSheet1 && !inSheet2) {
-        return null; // Click is in the outer gray background
-    }
+    if (!inSheet1 && !inSheet2) return null;
 
     const totalWidth = currentMapBounds[1][1];
     const totalHeight = currentMapBounds[1][0];

@@ -1,5 +1,3 @@
-console.log('[Issue Placement Debug] drawingTools.js module loaded with L.svgOverlay connector.');
-
 var vectorDrawingOverlay = document.getElementById('vectorDrawingOverlay');
 var dotsContainer = document.getElementById('dotsContainer');
 var toolHint = document.getElementById('toolHint');
@@ -380,8 +378,6 @@ window.handleMapClick = async function(e, mapCoords) {
                 issue_size: activeSize
             };
 
-            console.log('[Text Placement Debug] Submitting text payload to Supabase:', payload);
-
             clearTempPreview();
 
             const { data, error } = await supabaseClient.from('map_errors').insert([payload]).select();
@@ -390,7 +386,6 @@ window.handleMapClick = async function(e, mapCoords) {
             }
 
             if (!error && data && data.length > 0) {
-                console.log('[Text Placement Debug] Text issue saved successfully:', data[0]);
                 if (typeof newlyCreatedPinId !== 'undefined') newlyCreatedPinId = data[0].id;
                 if (typeof fetchPins === 'function') await fetchPins();
                 if (typeof renderUI === 'function') renderUI();

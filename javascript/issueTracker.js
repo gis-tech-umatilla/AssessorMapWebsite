@@ -92,99 +92,186 @@ if (mapViewport) {
         }
     });
 }
-// TIFF STUFF (Flashing Fixed)
-if (typeof window.tiffCache === 'undefined') window.tiffCache = {};
+// Converts a TIFF File object into a standard PNG File before upload
+async function convertFileIfTiff(file) {
+    const isTiff = /\.(tiff?)$/i.test(file.name) || file.type.includes('tiff');
+    if (!isTiff) return file;
 
-async function loadTiffImage(imgEl, tiffUrl, onComplete) {
-    if (!tiffUrl || !imgEl) return;
-
-    // Return immediately if already cached in memory
-    if (window.tiffCache[tiffUrl]) {
-        const cachedData = window.tiffCache[tiffUrl];
-        if (imgEl.src !== cachedData) {
-            imgEl.src = cachedData;
-            imgEl.setAttribute('data-src', cachedData);
-            imgEl.classList.remove('opacity-40', 'animate-pulse');
-        }
-        if (onComplete) onComplete();
-        return;
-    }
-
-    // Load UTIF decoder library dynamically if missing
+    // Load UTIF decoder if missing
     if (typeof UTIF === 'undefined') {
-        try {
-            await new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.min.js';
-                script.onload = resolve;
-                script.onerror = reject;
-                document.head.appendChild(script);
-            });
-        } catch (err) {
-            console.error('[TIFF Loader] Failed to load UTIF.js:', err);
-            return;
-        }
+        await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.min.js';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
     }
 
-    try {
-        const response = await fetch(tiffUrl);
-        const arrayBuffer = await response.arrayBuffer();
-        const ifds = UTIF.decode(arrayBuffer);
+    const arrayBuffer = await file.arrayBuffer();
+    const ifds = UTIF.decode(arrayBuffer);
+    if (!ifds || ifds.length === 0) return file;
 
-        if (ifds && ifds.length > 0) {
-            const firstPage = ifds[0];
-            UTIF.decodeImage(arrayBuffer, firstPage);
-            const rgba = UTIF.toRGBA8(firstPage);
+    const firstPage = ifds[0];
+    UTIF.decodeImage(arrayBuffer, firstPage);
+    const rgba = UTIF.toRGBA8(firstPage);
 
-            const canvas = document.createElement('canvas');
-            canvas.width = firstPage.width;
-            canvas.height = firstPage.height;
-            const ctx = canvas.getContext('2d');
-            const imgData = ctx.createImageData(firstPage.width, firstPage.height);
-            imgData.data.set(rgba);
-            ctx.putImageData(imgData, 0, 0);
+    const canvas = document.createElement('canvas');
+    canvas.width = firstPage.width;
+    canvas.height = firstPage.height;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(firstPage.width, firstPage.height);
+    imgData.data.set(rgba);
+    ctx.putImageData(imgData, 0, 0);
 
-            const pngUrl = canvas.toDataURL('image/png');
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    const newFileName = file.name.replace(/\.(tiff?)$/i, '') + '.png';
 
-            // Store in global cache for 0ms subsequent renders
-            window.tiffCache[tiffUrl] = pngUrl;
-
-            imgEl.src = pngUrl;
-            imgEl.setAttribute('data-src', pngUrl);
-            imgEl.classList.remove('opacity-40', 'animate-pulse');
-
-            if (onComplete) onComplete();
-        }
-    } catch (e) {
-        console.error('[TIFF Decode Error]', e);
-    }
+    return new File([blob], newFileName, { type: 'image/png' });
 }
 
-// Lightweight modal viewer (Restored backdrop blur, neutral X button off image)
+// Leaflet-powered image modal with cursor-focused pan/zoom & transparent backdrop blur
 function openImageModal(imgSrc) {
     let modal = document.getElementById('custom-image-modal');
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'custom-image-modal';
-        modal.className = 'fixed inset-0 z-[9999] bg-black/50 backdrop-blur-xs flex items-center justify-center p-6 hidden';
+        modal.className = 'fixed inset-0 z-[9999] bg-black/75 backdrop-blur-md flex items-center justify-center hidden select-none';
         modal.innerHTML = `
-            <div class="relative max-w-[90vw] max-h-[90vh] flex items-center justify-center">
-                <button id="close-image-modal-btn" type="button" title="Close" class="absolute -top-5 -right-5 text-slate-700 hover:text-slate-950 bg-white hover:bg-slate-100 rounded-full w-9 h-9 text-base font-bold cursor-pointer transition shadow-xl flex items-center justify-center z-50 border border-slate-200">✕</button>
-                <img id="custom-modal-img" src="" alt="Preview" class="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl" />
+            <style>
+                #custom-image-modal .leaflet-container {
+                    background: transparent !important;
+                }
+            </style>
+            <div class="relative w-full h-full flex items-center justify-center overflow-hidden">
+                <!-- Floating Zoom & Close Controls -->
+                <div class="absolute top-4 right-4 z-[10000] flex items-center space-x-1.5 bg-slate-900/90 backdrop-blur border border-slate-700 p-1.5 rounded-xl shadow-2xl">
+                    <button id="modal-zoom-in" type="button" title="Zoom In" class="w-8 h-8 text-white bg-slate-800 hover:bg-slate-700 rounded-lg text-base font-bold cursor-pointer transition flex items-center justify-center">+</button>
+                    <button id="modal-zoom-out" type="button" title="Zoom Out" class="w-8 h-8 text-white bg-slate-800 hover:bg-slate-700 rounded-lg text-base font-bold cursor-pointer transition flex items-center justify-center">−</button>
+                    <button id="modal-zoom-reset" type="button" title="Reset View" class="px-2.5 h-8 text-xs text-white bg-slate-800 hover:bg-slate-700 rounded-lg font-bold cursor-pointer transition flex items-center justify-center">Reset</button>
+                    <div class="w-px h-5 bg-slate-700 mx-1"></div>
+                    <button id="close-image-modal-btn" type="button" title="Close" class="w-8 h-8 text-white bg-red-600/80 hover:bg-red-600 rounded-lg text-xs font-bold cursor-pointer transition flex items-center justify-center">✕</button>
+                </div>
+
+                <!-- Leaflet Container Frame -->
+                <div id="modal-leaflet-container" class="w-full h-full bg-transparent"></div>
             </div>
         `;
         document.body.appendChild(modal);
 
-        const closeModal = () => modal.classList.add('hidden');
         modal.addEventListener('click', (e) => {
-            if (e.target === modal || e.target.closest('#close-image-modal-btn')) closeModal();
+            if (e.target.id === 'custom-image-modal' || e.target.closest('#close-image-modal-btn')) {
+                closeModal();
+            }
         });
+
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
         });
     }
-    document.getElementById('custom-modal-img').src = imgSrc;
+
+    const closeModal = () => {
+        modal.classList.add('hidden');
+        if (window.modalLeafletMap) {
+            window.modalLeafletMap.remove();
+            window.modalLeafletMap = null;
+        }
+    };
+
     modal.classList.remove('hidden');
+
+    // Destroy existing modal Leaflet instance to prevent container reuse conflicts
+    if (window.modalLeafletMap) {
+        window.modalLeafletMap.remove();
+        window.modalLeafletMap = null;
+    }
+
+    const img = new Image();
+    img.src = imgSrc;
+    img.onload = () => {
+        const h = img.naturalHeight || 1000;
+        const w = img.naturalWidth || 1000;
+        const bounds = [[0, 0], [h, w]];
+        const imgBounds = L.latLngBounds(bounds);
+
+        window.modalLeafletMap = L.map('modal-leaflet-container', {
+            crs: L.CRS.Simple,
+            minZoom: -10,
+            maxZoom: 5,
+            zoomSnap: 0.05,
+            zoomDelta: 0.2,
+            wheelPxPerZoomLevel: 80,
+            wheelDebounceTime: 0,
+            zoomAnimation: false,
+            fadeAnimation: false,
+            markerZoomAnimation: false,
+            attributionControl: false,
+            zoomControl: false
+        });
+
+        const containerEl = document.getElementById('modal-leaflet-container');
+        if (containerEl) {
+            containerEl.style.setProperty('background', 'transparent', 'important');
+
+            // Wheel Listener: Blocks zooming outside the image bounds (matches main map fix)
+            containerEl.addEventListener('wheel', (e) => {
+                if (!window.modalLeafletMap) return;
+
+                const containerPoint = window.modalLeafletMap.mouseEventToContainerPoint(e);
+                const latLng = window.modalLeafletMap.containerPointToLatLng(containerPoint);
+
+                if (!imgBounds.contains(latLng)) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                }
+            }, { capture: true, passive: false });
+
+            // Disable map drag initiating from blurred void
+            containerEl.addEventListener('pointerdown', (e) => {
+                if (!window.modalLeafletMap) return;
+                if (e.target.closest('#modal-zoom-in, #modal-zoom-out, #modal-zoom-reset, #close-image-modal-btn')) return;
+
+                const containerPoint = window.modalLeafletMap.mouseEventToContainerPoint(e);
+                const latLng = window.modalLeafletMap.containerPointToLatLng(containerPoint);
+
+                if (!imgBounds.contains(latLng)) {
+                    window.modalLeafletMap.dragging.disable();
+                } else {
+                    window.modalLeafletMap.dragging.enable();
+                }
+            }, { capture: true, passive: false });
+        }
+
+        L.imageOverlay(imgSrc, bounds).addTo(window.modalLeafletMap);
+
+        // Give the browser a tiny delay to compute the layout dimensions of the newly unhidden modal
+        setTimeout(() => {
+            if (!window.modalLeafletMap) return;
+
+            window.modalLeafletMap.invalidateSize();
+            window.modalLeafletMap.fitBounds(bounds, { padding: [10, 10], animate: false });
+            
+            // Set initial fit view as the absolute furthest zoom out allowed
+            const initialFitZoom = window.modalLeafletMap.getZoom();
+            window.modalLeafletMap.setMinZoom(initialFitZoom);
+
+            // Wire control buttons
+            const zoomInBtn = document.getElementById('modal-zoom-in');
+            const zoomOutBtn = document.getElementById('modal-zoom-out');
+            const zoomResetBtn = document.getElementById('modal-zoom-reset');
+
+            if (zoomInBtn) zoomInBtn.onclick = () => window.modalLeafletMap && window.modalLeafletMap.zoomIn(0.5, { animate: false });
+            if (zoomOutBtn) zoomOutBtn.onclick = () => window.modalLeafletMap && window.modalLeafletMap.zoomOut(0.5, { animate: false });
+            if (zoomResetBtn) zoomResetBtn.onclick = () => window.modalLeafletMap && window.modalLeafletMap.fitBounds(bounds, { padding: [10, 10], animate: false });
+        }, 50);
+
+        // Close modal when clicking in the blurred area outside the image
+        window.modalLeafletMap.on('click', (e) => {
+            if (!imgBounds.contains(e.latlng)) {
+                closeModal();
+            }
+        });
+    };
 }
 
 async function initUserIdentifier() {
@@ -408,108 +495,732 @@ function zoomToIssue(err) {
     }
 }
 
-function triggerIssuePopover(clickEvent, err) {
-    if (!floatingPopover) return;
+// Active Popover State Tracking for Real-Time Map Pan/Zoom
+if (typeof window.activePopoverError === 'undefined') window.activePopoverError = null;
 
-    if (currentActivePopoverId === err.id && !floatingPopover.classList.contains('hidden')) {
-        hideIssuePopover();
-        return;
+// Calculates screen coordinates for all 4 anchor sides (Top, Bottom, Left, Right)
+function getIssueAnchorScreenCoords(err) {
+    if (!err) return null;
+
+    const overlayEl = document.getElementById('vectorDrawingOverlay');
+    if (!overlayEl) return null;
+
+    let canvasWidth = 1000;
+    let canvasHeight = 1000;
+    if (typeof currentMapBounds !== 'undefined' && currentMapBounds && currentMapBounds[1]) {
+        canvasHeight = currentMapBounds[1][0];
+        canvasWidth = currentMapBounds[1][1];
     }
 
-    const isFixed = err.status === 'fixed';
-    const pinNum = err.error_number || '?';
-    let typeLabel = 'Point';
-    if (err.tool_type === 'line') typeLabel = 'Line';
-    if (err.tool_type === 'dash') typeLabel = 'Dash';
-    if (err.tool_type === 'arrow') typeLabel = 'Arrow';
-    if (err.tool_type === 'circle') typeLabel = 'Circle';
-    if (err.tool_type === 'highlight') typeLabel = 'Highlight';
-    if (err.tool_type === 'shape') typeLabel = 'Shape';
-    if (err.tool_type === 'text') typeLabel = 'Text';
+    const defaultKey = typeof DEFAULT_ISSUE_SIZE !== 'undefined' ? DEFAULT_ISSUE_SIZE : 'medium';
+    const rawSizeKey = (err.issue_size || defaultKey).toLowerCase();
+    let sizeKey = 'medium';
+    if (rawSizeKey === 'small' || rawSizeKey === 's') sizeKey = 'small';
+    else if (rawSizeKey === 'large' || rawSizeKey === 'l') sizeKey = 'large';
 
-    currentActivePopoverId = err.id;
+    const fallbackSizes = { small: 13, medium: 18, large: 25 };
+    const pointradius = (typeof ISSUE_SIZES !== 'undefined' && ISSUE_SIZES[sizeKey])
+        ? ISSUE_SIZES[sizeKey]
+        : fallbackSizes[sizeKey];
 
-    if (popoverBadge) {
-        popoverBadge.className = `rounded-full w-5 h-5 text-[10px] flex items-center justify-center font-bold ${isFixed ? 'bg-emerald-600' : 'bg-red-600'}`;
-        popoverBadge.innerText = pinNum;
-    }
-    const fixerNorm = normUser(err.fixed_by);
-    const uploaderNorm = normUser(getMapUploader(err));
-    const isFixedByNonUploader = isFixed && fixerNorm && (fixerNorm !== uploaderNorm);
+    let minLocalX = (parseFloat(err.x_percent) / 100) * canvasWidth;
+    let maxLocalX = minLocalX;
+    let minLocalY = (parseFloat(err.y_percent) / 100) * canvasHeight;
+    let maxLocalY = minLocalY;
 
-    if (popoverTitle) {
-        let titleStr = typeLabel;
-        if (err.created_by) {
-            titleStr += ` (by ${formatDisplayName(err.created_by)}`;
-            if (isFixedByNonUploader) {
-                titleStr += ` fixed by ${formatDisplayName(err.fixed_by)}`;
-            }
-            titleStr += `)`;
-        }
-        popoverTitle.innerText = titleStr;
-    }
-    
-    const screenInput = document.getElementById(`input-${err.id}`);
-    const textValue = screenInput ? screenInput.value : (err.description || '');
-    if (popoverContent) {
-        popoverContent.innerText = textValue.trim() || 'No Description';
+    let parsedCoords = null;
+    if (err.geometry_data) {
+        try {
+            parsedCoords = typeof err.geometry_data === 'string' ? JSON.parse(err.geometry_data) : err.geometry_data;
+        } catch (e) {}
     }
 
-    if (popoverActionBtn) {
-        popoverActionBtn.innerText = isFixed ? 'Reopen Issue' : 'Mark As Fixed';
-        popoverActionBtn.className = `w-full py-1.5 text-xs font-bold text-white rounded-lg transition cursor-pointer shadow-md ${isFixed ? 'bg-red-600 hover:bg-red-700' : 'bg-[#1985a1] hover:bg-[#1985a1]/80'}`;
+    if (err.tool_type === 'shape' && parsedCoords && Array.isArray(parsedCoords.points) && parsedCoords.points.length > 0) {
+        const xs = parsedCoords.points.map(p => (p.x / 100) * canvasWidth);
+        const ys = parsedCoords.points.map(p => (p.y / 100) * canvasHeight);
+        minLocalX = Math.min(...xs);
+        maxLocalX = Math.max(...xs);
+        minLocalY = Math.min(...ys, ys[0] - pointradius);
+        maxLocalY = Math.max(...ys);
+    } else if (err.tool_type === 'circle' && parsedCoords && typeof parsedCoords.cx === 'number' && typeof parsedCoords.edgeX === 'number') {
+        const cx = (parsedCoords.cx / 100) * canvasWidth;
+        const cy = (parsedCoords.cy / 100) * canvasHeight;
+        const edgeX = (parsedCoords.edgeX / 100) * canvasWidth;
+        const edgeY = (parsedCoords.edgeY / 100) * canvasHeight;
+        const radius = Math.hypot(edgeX - cx, edgeY - cy);
         
-        popoverActionBtn.onclick = () => {
-            togglePinStatus(err.id, err.status);
-            hideIssuePopover();
-        };
-    }
+        minLocalX = cx - radius - pointradius;
+        maxLocalX = cx + radius;
+        minLocalY = cy - radius - pointradius;
+        maxLocalY = cy + radius;
+    } else if ((err.tool_type === 'line' || err.tool_type === 'dash' || err.tool_type === 'arrow' || err.tool_type === 'highlight') && parsedCoords && typeof parsedCoords.x1 === 'number') {
+        const px1 = (parsedCoords.x1 / 100) * canvasWidth;
+        const py1 = (parsedCoords.y1 / 100) * canvasHeight;
+        const px2 = (parsedCoords.x2 / 100) * canvasWidth;
+        const py2 = (parsedCoords.y2 / 100) * canvasHeight;
 
-    const viewportRect = document.getElementById('mapViewport').getBoundingClientRect();
-    const targetElement = clickEvent.currentTarget;
-    
-    let targetCenterX, targetTopY;
+        minLocalX = Math.min(px1, px2);
+        maxLocalX = Math.max(px1, px2);
+        minLocalY = Math.min(py1 - pointradius, py2);
+        maxLocalY = Math.max(py1, py2);
+    } else if (err.tool_type === 'text') {
+        // Rotated Text Bounding Box Calculation
+        const textStr = (err.description || 'Type text...').trim();
+        const charCount = Math.max(textStr.length, 5);
+        const approxTextWidthPx = charCount * (pointradius * 0.65) + pointradius + 12;
+        const approxTextHeightPx = pointradius * 1.5;
 
-    if (targetElement && typeof targetElement.getBoundingClientRect === 'function') {
-        const targetRect = targetElement.getBoundingClientRect();
-        targetCenterX = (targetRect.left + targetRect.width / 2) - viewportRect.left;
-        targetTopY = targetRect.top - viewportRect.top;
+        const startX = (parseFloat(err.x_percent) / 100) * canvasWidth;
+        const startY = (parseFloat(err.y_percent) / 100) * canvasHeight;
+
+        let angleDeg = 0;
+        if (typeof err.angle === 'number') angleDeg = err.angle;
+        else if (parsedCoords && typeof parsedCoords.angle === 'number') angleDeg = parsedCoords.angle;
+
+        const rad = (angleDeg * Math.PI) / 180;
+        const cos = Math.cos(rad);
+        const sin = Math.sin(rad);
+
+        // 4 corners relative to text origin
+        const corners = [
+            { x: 0, y: -approxTextHeightPx / 2 },
+            { x: approxTextWidthPx, y: -approxTextHeightPx / 2 },
+            { x: approxTextWidthPx, y: approxTextHeightPx / 2 },
+            { x: 0, y: approxTextHeightPx / 2 }
+        ];
+
+        const rotatedX = corners.map(c => startX + (c.x * cos - c.y * sin));
+        const rotatedY = corners.map(c => startY + (c.x * sin + c.y * cos));
+
+        minLocalX = Math.min(...rotatedX, startX - pointradius);
+        maxLocalX = Math.max(...rotatedX, startX + pointradius);
+        minLocalY = Math.min(...rotatedY, startY - pointradius);
+        maxLocalY = Math.max(...rotatedY, startY + pointradius);
     } else {
-        targetCenterX = clickEvent.clientX - viewportRect.left;
-        targetTopY = clickEvent.clientY - viewportRect.top;
+        const px = (parseFloat(err.x_percent) / 100) * canvasWidth;
+        const py = (parseFloat(err.y_percent) / 100) * canvasHeight;
+
+        minLocalX = px - pointradius;
+        maxLocalX = px + pointradius;
+        minLocalY = py - pointradius;
+        maxLocalY = py + pointradius;
     }
 
-    floatingPopover.style.left = `${targetCenterX}px`;
-    floatingPopover.style.top = `${targetTopY}px`;
-    floatingPopover.classList.remove('hidden');
+    const ctm = overlayEl.getScreenCTM();
+    if (!ctm) return null;
 
-    const cardWidth = floatingPopover.offsetWidth || 256;
-    const cardHeight = floatingPopover.offsetHeight || 140;
+    const mapPt = (lx, ly) => {
+        const pt = overlayEl.createSVGPoint();
+        pt.x = lx;
+        pt.y = ly;
+        return pt.matrixTransform(ctm);
+    };
 
-    let finalLeft = targetCenterX - (cardWidth / 2);
-    let finalTop = targetTopY - cardHeight - 8; 
+    const mapViewportEl = document.getElementById('mapViewport');
+    const viewportRect = mapViewportEl ? mapViewportEl.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
 
-    if (finalLeft < 10) finalLeft = 10;
-    if (finalLeft + cardWidth > viewportRect.width - 10) finalLeft = viewportRect.width - cardWidth - 10;
-    
-    if (finalTop < 10) {
-        if (targetElement && typeof targetElement.getBoundingClientRect === 'function') {
-            const targetRect = targetElement.getBoundingClientRect();
-            finalTop = (targetRect.bottom - viewportRect.top) + 8;
-        } else {
-            finalTop = targetTopY + 20;
-        }
+    // Screen Space Conversion
+    let topScreen = mapPt((minLocalX + maxLocalX) / 2, minLocalY);
+    let bottomScreen = mapPt((minLocalX + maxLocalX) / 2, maxLocalY);
+    let leftScreen = mapPt(minLocalX, (minLocalY + maxLocalY) / 2);
+    let rightScreen = mapPt(maxLocalX, (minLocalY + maxLocalY) / 2);
+
+    // Zoomed-In Circle Clamping: Keep top anchor at viewport top edge when circle top is off-screen
+    if (err.tool_type === 'circle' && topScreen.y < viewportRect.top && bottomScreen.y > viewportRect.top) {
+        topScreen.y = Math.min(viewportRect.top + 20, bottomScreen.y - 40);
     }
 
-    floatingPopover.style.left = `${finalLeft}px`;
-    floatingPopover.style.top = `${finalTop}px`;
+    return {
+        top: topScreen,
+        bottom: bottomScreen,
+        left: leftScreen,
+        right: rightScreen
+    };
 }
 
-function hideIssuePopover() {
+// Dynamically rebinds Leaflet listeners whenever a map sheet is loaded or changed
+function ensureMapListenersBound() {
+    if (typeof leafletMap !== 'undefined' && leafletMap && !leafletMap._popoverEventsBound) {
+        leafletMap._popoverEventsBound = true;
+        leafletMap.on('move zoom zoomend viewreset drag', updatePopoverPosition);
+    }
+}
+
+// Dynamic 4-Side Popover Positioning System (Prioritizes Top -> Bottom -> Right -> Left)
+function updatePopoverPosition() {
+    ensureMapListenersBound();
+    if (!floatingPopover || floatingPopover.classList.contains('hidden') || !window.activePopoverError) return;
+
+    requestAnimationFrame(() => {
+        const err = window.activePopoverError;
+        const anchors = getIssueAnchorScreenCoords(err);
+        if (!anchors) return;
+
+        const mapViewportEl = document.getElementById('mapViewport');
+        const vRect = mapViewportEl 
+            ? mapViewportEl.getBoundingClientRect() 
+            : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+
+        const cardWidth = floatingPopover.offsetWidth || 288;
+        const cardHeight = floatingPopover.offsetHeight || 160;
+        const gap = 12;
+
+        let bestSide = 'top';
+        let finalLeft = 0;
+        let finalTop = 0;
+        let anchorPt = anchors.top;
+
+        // Evaluate 4 Side Placements
+        const topFit = anchors.top.y - cardHeight - gap >= vRect.top + 10;
+        const bottomFit = anchors.bottom.y + cardHeight + gap <= vRect.bottom - 10;
+        const rightFit = anchors.right.x + cardWidth + gap <= vRect.right - 10;
+        const leftFit = anchors.left.x - cardWidth - gap >= vRect.left + 10;
+
+        if (topFit) {
+            bestSide = 'top';
+            anchorPt = anchors.top;
+            finalLeft = anchorPt.x - (cardWidth / 2);
+            finalTop = anchorPt.y - cardHeight - gap;
+        } else if (bottomFit) {
+            bestSide = 'bottom';
+            anchorPt = anchors.bottom;
+            finalLeft = anchorPt.x - (cardWidth / 2);
+            finalTop = anchorPt.y + gap;
+        } else if (rightFit) {
+            bestSide = 'right';
+            anchorPt = anchors.right;
+            finalLeft = anchorPt.x + gap;
+            finalTop = anchorPt.y - (cardHeight / 2);
+        } else if (leftFit) {
+            bestSide = 'left';
+            anchorPt = anchors.left;
+            finalLeft = anchorPt.x - cardWidth - gap;
+            finalTop = anchorPt.y - (cardHeight / 2);
+        } else {
+            // Fallback: Clamp to Top/Bottom
+            bestSide = anchors.top.y < vRect.top + 100 ? 'bottom' : 'top';
+            anchorPt = bestSide === 'bottom' ? anchors.bottom : anchors.top;
+            finalLeft = anchorPt.x - (cardWidth / 2);
+            finalTop = bestSide === 'bottom' ? anchorPt.y + gap : anchorPt.y - cardHeight - gap;
+        }
+
+        // Viewport Horizontal & Vertical Safety Clamping
+        finalLeft = Math.max(vRect.left + 10, Math.min(vRect.right - cardWidth - 10, finalLeft));
+        finalTop = Math.max(vRect.top + 10, Math.min(vRect.bottom - cardHeight - 10, finalTop));
+
+        floatingPopover.style.position = 'fixed';
+        floatingPopover.style.left = `${finalLeft}px`;
+        floatingPopover.style.top = `${finalTop}px`;
+
+        // Dynamic 4-Way Tail Pointer Alignment
+        const tailEl = floatingPopover.querySelector('#popover-tail');
+        if (tailEl) {
+            const isFixed = err.status === 'fixed';
+            const bgClass = isFixed ? 'border-emerald-100' : 'border-red-100';
+
+            tailEl.style.top = '';
+            tailEl.style.bottom = '';
+            tailEl.style.left = '';
+            tailEl.style.right = '';
+            tailEl.style.transform = '';
+
+            if (bestSide === 'top') {
+                const tailX = Math.max(16, Math.min(cardWidth - 16, anchorPt.x - finalLeft));
+                tailEl.className = `absolute -bottom-2.5 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[10px] border-t-${isFixed ? 'emerald-100' : 'red-100'} filter drop-shadow-2xs`;
+                tailEl.style.left = `${tailX}px`;
+                tailEl.style.transform = 'translateX(-50%)';
+            } else if (bestSide === 'bottom') {
+                const tailX = Math.max(16, Math.min(cardWidth - 16, anchorPt.x - finalLeft));
+                tailEl.className = `absolute -top-2.5 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[10px] border-b-${isFixed ? 'emerald-100' : 'red-100'} filter drop-shadow-2xs`;
+                tailEl.style.left = `${tailX}px`;
+                tailEl.style.transform = 'translateX(-50%)';
+            } else if (bestSide === 'right') {
+                const tailY = Math.max(16, Math.min(cardHeight - 16, anchorPt.y - finalTop));
+                tailEl.className = `absolute -left-2.5 w-0 h-0 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent border-r-[10px] border-r-${isFixed ? 'emerald-100' : 'red-100'} filter drop-shadow-2xs`;
+                tailEl.style.top = `${tailY}px`;
+                tailEl.style.transform = 'translateY(-50%)';
+            } else if (bestSide === 'left') {
+                const tailY = Math.max(16, Math.min(cardHeight - 16, anchorPt.y - finalTop));
+                tailEl.className = `absolute -right-2.5 w-0 h-0 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent border-l-[10px] border-l-${isFixed ? 'emerald-100' : 'red-100'} filter drop-shadow-2xs`;
+                tailEl.style.top = `${tailY}px`;
+                tailEl.style.transform = 'translateY(-50%)';
+            }
+        }
+    });
+}
+
+// Bind Leaflet Map Pan/Zoom events to track popover in real time without closing
+if (typeof window.hasAttachedPopoverMapListeners === 'undefined') {
+    window.hasAttachedPopoverMapListeners = true;
+    const attachMapListeners = () => {
+        if (typeof leafletMap !== 'undefined' && leafletMap) {
+            leafletMap.on('move zoom zoomend viewreset drag', updatePopoverPosition);
+        } else {
+            setTimeout(attachMapListeners, 300);
+        }
+    };
+    attachMapListeners();
+}
+
+function hideIssuePopover(reason = 'Unknown') {    
     if (floatingPopover) {
         floatingPopover.classList.add('hidden');
     }
     currentActivePopoverId = null;
+    window.activePopoverError = null;
+    clearFeatureHighlight();
+    updateSidebarCardHighlight();
+}
+
+// Canvas click listener: Only dismisses popover on true empty space clicks
+var mapViewportElForClick = document.getElementById('mapViewport');
+if (mapViewportElForClick) {
+    mapViewportElForClick.addEventListener('click', (e) => {
+        if (!floatingPopover || floatingPopover.classList.contains('hidden')) return;
+
+        const isInsidePopover = floatingPopover.contains(e.target);
+        const isClickOnFeature = e.target.closest('.pointer-events-auto') || e.target.closest('#active-issue-highlight');
+
+        if (!isInsidePopover && !isClickOnFeature) {
+            hideIssuePopover('Clicked empty canvas');
+        }
+    });
+}
+
+function triggerIssuePopover(clickEvent, err) {
+    if (!floatingPopover) return;
+
+    if (currentActivePopoverId === err.id && !floatingPopover.classList.contains('hidden')) {
+        hideIssuePopover('Toggled active issue off');
+        return;
+    }
+
+    currentActivePopoverId = err.id;
+    window.activePopoverError = err;
+
+    // Apply ArcGIS Online selection blue highlight ring
+    highlightSelectedFeature(err);
+    updateSidebarCardHighlight();
+
+    const isFixed = err.status === 'fixed';
+    const pinNumber = err.error_number || '?';
+    
+    // Match Sidebar Card Palette
+    const cardColorClass = isFixed ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800';
+    const badgeColorClass = isFixed ? 'bg-emerald-600' : 'bg-red-600';
+
+    let typePrefix = 'Point';
+    if (err.tool_type === 'line') typePrefix = 'Line';
+    if (err.tool_type === 'dash') typePrefix = 'Dash';
+    if (err.tool_type === 'arrow') typePrefix = 'Arrow';
+    if (err.tool_type === 'circle') typePrefix = 'Circle';
+    if (err.tool_type === 'highlight') typePrefix = 'Highlight';
+    if (err.tool_type === 'shape') typePrefix = 'Polygon';
+    if (err.tool_type === 'text') typePrefix = 'Text';
+
+    // Creator & Fixer Formatting
+    const creatorPrefix = err.created_by || '';
+    const creatorColors = getUserColorStyle(creatorPrefix);
+    const firstNameRaw = creatorPrefix ? creatorPrefix.split('.')[0].toLowerCase() : '';
+    let formattedFirstName = firstNameRaw === 'mckenzie' ? 'McKenzie' : (firstNameRaw ? firstNameRaw.charAt(0).toUpperCase() + firstNameRaw.slice(1) : '');
+    const textHexOrClass = creatorColors.bg.replace(/^bg-/, 'text-');
+
+    const fixerNorm = normUser(err.fixed_by);
+    const uploaderNorm = normUser(getMapUploader(err));
+    const isFixedByNonUploader = isFixed && Boolean(fixerNorm) && Boolean(uploaderNorm) && (fixerNorm !== uploaderNorm);
+
+    let displayCreator = '';
+    if (isFixedByNonUploader) {
+        const formattedFixer = formatDisplayName(err.fixed_by);
+        const fixerColors = getUserColorStyle(err.fixed_by);
+        const fixerTextClass = fixerColors.bg.replace(/^bg-/, 'text-');
+
+        displayCreator = `
+            <div class="inline-flex flex-col justify-start self-start -mt-0.5 leading-tight min-w-0">
+                <span class="text-xs italic whitespace-nowrap">
+                    <span class="text-slate-400 font-normal">by</span> 
+                    <span class="font-bold saturate-75 opacity-90 ${textHexOrClass}">${formattedFirstName}</span>
+                </span>
+                <span class="text-[10px] italic whitespace-nowrap text-slate-500">
+                    <span class="text-slate-400 font-normal">fixed by</span> 
+                    <span class="font-bold saturate-75 opacity-90 ${fixerTextClass}">${formattedFixer}</span>
+                </span>
+            </div>
+        `;
+    } else {
+        displayCreator = creatorPrefix ? `
+            <span class="text-xs italic">
+                <span class="text-slate-400 font-normal">by</span> 
+                <span class="font-bold saturate-75 opacity-90 ${textHexOrClass}">${formattedFirstName}</span>
+            </span>
+        ` : '';
+    }
+
+    // Attachments Stream (TIFF logic removed)
+    const cachedAttachments = (window.activeAttachments && window.activeAttachments[err.id]) || [];
+    let attachmentsHTML = '';
+    if (cachedAttachments.length > 0) {
+        let filesHTML = '';
+        const imgBgClass = isFixed ? 'bg-[#ecfdf5]' : 'bg-[#fef2f2]';
+        cachedAttachments.forEach(f => {
+            const fileName = f.file_name || '';
+            const fileUrl = f.file_url || '';
+            const isImage = /\.(png|jpe?g|webp|gif|svg|tiff?)$/i.test(fileName) || fileUrl.match(/\.(png|jpe?g|webp|gif|svg|tiff?)/i);
+
+            if (isImage) {
+                filesHTML += `
+                    <div class="w-full flex items-center justify-center py-0.5 ${imgBgClass}">
+                        <div class="relative inline-flex items-center justify-center max-w-full">
+                            <img src="${fileUrl}" data-src="${fileUrl}" alt="Attachment" class="preview-popover-img max-w-full max-h-40 object-contain rounded cursor-pointer block" />
+                        </div>
+                    </div>
+                `;
+            } else {
+                filesHTML += `
+                    <div class="flex items-center justify-between px-2 py-1 bg-slate-100 border border-slate-200 rounded text-xs font-semibold text-slate-700 shadow-2xs w-full">
+                        <a href="${fileUrl}" target="_blank" rel="noopener noreferrer" class="flex-1 min-w-0 flex items-center space-x-1.5 py-0.5 no-underline" title="${fileName}">
+                            <span>📄</span>
+                            <span class="truncate">${fileName}</span>
+                        </a>
+                    </div>
+                `;
+            }
+        });
+        attachmentsHTML = `<div class="flex flex-col gap-1 w-full my-1">${filesHTML}</div>`;
+    }
+
+    // Comments Stream
+    const cachedComments = (window.activeComments && window.activeComments[err.id]) || [];
+    let commentsHTML = '';
+    if (cachedComments.length > 0) {
+        let commentCards = '';
+        const commentCardClass = isFixed ? 'bg-[#ecfdf5]' : 'bg-[#fef2f2]';
+        cachedComments.forEach(c => {
+            const name = typeof formatDisplayName === 'function' ? formatDisplayName(c.created_by) : (c.created_by ? c.created_by.split('@')[0] : '');
+            const colors = typeof getUserColorStyle === 'function' ? getUserColorStyle(c.created_by) : { bg: 'bg-indigo-600', text: 'text-indigo-600' };
+            const textClass = colors.bg ? colors.bg.replace(/^bg-/, 'text-') : 'text-indigo-600';
+            commentCards += `
+                <div class="saved-comment-card ${commentCardClass} p-1 rounded">
+                    <div class="mb-0.5">
+                        <span class="text-xs italic">
+                            <span class="font-bold saturate-75 opacity-90 ${textClass}">${name}</span>
+                            <span class="text-slate-400 font-normal">replied</span>
+                        </span>
+                    </div>
+                    <div class="text-xs text-slate-800 font-medium whitespace-pre-wrap leading-tight break-words px-0.5">${c.comment_text}</div>
+                </div>
+            `;
+        });
+        commentsHTML = `<div class="space-y-1 max-h-32 overflow-y-auto text-xs my-1 w-full">${commentCards}</div>`;
+    }
+
+    // Layer Badge (with title attribute for hover tooltip)
+    const layerHTML = err.gis_layer ? `
+        <div title="${err.gis_layer}" class="inline-flex items-center space-x-1 px-2 py-0.5 rounded border border-slate-300/80 bg-white/80 text-xs font-normal text-slate-700 shadow-2xs cursor-help">
+            <svg class="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            <span class="truncate max-w-[120px] font-normal">${err.gis_layer}</span>
+        </div>
+    ` : '';
+
+    // Action Button Text & Colors
+    const actionBtnText = isFixed ? 'Reopen Issue' : 'Mark As Fixed';
+    const actionBtnColor = isFixed 
+        ? 'bg-red-100/80 hover:bg-red-200 text-red-800 border border-red-200/60' 
+        : 'bg-emerald-100/80 hover:bg-emerald-200 text-emerald-800 border border-emerald-200/60';
+
+    // Construct Card Inner Structure
+    floatingPopover.className = `fixed z-[9999] p-3 border rounded-lg shadow-2xl text-sm flex flex-col w-72 transition duration-150 ${cardColorClass}`;
+    floatingPopover.innerHTML = `
+        <div class="flex justify-between items-start mb-1.5">
+            <div class="flex items-center space-x-1.5 flex-1 status-badge-zone">
+                <span class="${badgeColorClass} text-white rounded-full w-5 h-5 text-xs flex items-center justify-center font-bold">${pinNumber}</span>
+                <span class="text-[10px] font-bold text-slate-500 bg-slate-200/80 px-1 py-0.5 rounded">${typePrefix}</span>
+                <span class="text-[10px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded ${isFixed ? 'bg-[#a4f4cf] text-emerald-900' : 'bg-[#ffc9c9] text-red-900'}">${err.status}</span>
+                <span>${displayCreator}</span>
+            </div>
+            <button id="popover-close-btn" type="button" title="Close preview" class="text-xs text-slate-400 hover:text-slate-700 font-bold transition cursor-pointer p-0.5 rounded hover:bg-slate-200/50">✕</button>
+        </div>
+
+        <div class="w-full space-y-1">
+            <div class="w-full px-1 py-0.5 text-xs font-semibold text-slate-800 whitespace-pre-wrap break-words leading-snug">
+                ${err.description ? err.description : '<span class="italic text-slate-400 font-normal">No description</span>'}
+            </div>
+
+            ${attachmentsHTML}
+            ${commentsHTML}
+
+            <!-- Bottom Action Row -->
+            <div class="flex items-center justify-between gap-1 pt-1 mt-1">
+                ${layerHTML}
+                <button id="popover-status-toggle-btn" type="button" class="px-2.5 py-1 text-xs font-bold rounded-md transition cursor-pointer shadow-2xs shrink-0 ml-auto ${actionBtnColor}">
+                    ${actionBtnText}
+                </button>
+            </div>
+        </div>
+
+        <!-- Dynamic Pointer Tail -->
+        <div id="popover-tail" class="absolute w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent filter drop-shadow-2xs"></div>
+    `;
+
+    // Event Handlers
+    const closeBtn = floatingPopover.querySelector('#popover-close-btn');
+    if (closeBtn) closeBtn.onclick = () => hideIssuePopover('Popover X clicked');
+
+    const toggleBtn = floatingPopover.querySelector('#popover-status-toggle-btn');
+    if (toggleBtn) {
+        toggleBtn.onclick = (e) => {
+            e.stopPropagation();
+            togglePinStatus(err.id, err.status);
+            hideIssuePopover('Status toggled');
+        };
+    }
+
+    // Attachments preview logic for popover (TIFF loader removed)
+    floatingPopover.querySelectorAll('.preview-popover-img').forEach(imgEl => {
+        imgEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const imgSrc = imgEl.getAttribute('data-src');
+            if (typeof openImageModal === 'function') {
+                openImageModal(imgSrc);
+            } else {
+                window.open(imgSrc, '_blank');
+            }
+        });
+    });
+
+    floatingPopover.classList.remove('hidden');
+
+    // Trigger position update
+    updatePopoverPosition();
+}
+
+// Updates sidebar issue card borders to cyan when active (without scrolling or moving the sidebar)
+function updateSidebarCardHighlight() {
+    var sidebarList = document.getElementById('sidebarList');
+    if (!sidebarList) return;
+
+    var activeId = window.activePopoverError ? String(window.activePopoverError.id) : (currentActivePopoverId ? String(currentActivePopoverId) : null);
+
+    sidebarList.querySelectorAll('[data-card-issue-id]').forEach(card => {
+        const cardId = String(card.getAttribute('data-card-issue-id'));
+        const isActive = activeId && cardId === activeId;
+
+        if (isActive) {
+            // Replace standard border with bright cyan outline
+            card.classList.remove('border-red-200', 'border-emerald-200');
+            card.style.borderColor = '#00ffff';
+            card.style.borderWidth = '2px';
+            card.style.borderStyle = 'solid';
+        } else {
+            // Restore default border styles based on open/fixed status
+            card.style.borderColor = '';
+            card.style.borderWidth = '';
+            card.style.borderStyle = '';
+
+            const isFixed = card.classList.contains('bg-emerald-50');
+            if (isFixed) {
+                card.classList.add('border-emerald-200');
+                card.classList.remove('border-red-200');
+            } else {
+                card.classList.add('border-red-200');
+                card.classList.remove('border-emerald-200');
+            }
+        }
+    });
+}
+
+// Removes the selection highlight from the map
+function clearFeatureHighlight() {
+    const existingHighlight = document.getElementById('active-issue-highlight');
+    if (existingHighlight) {
+        existingHighlight.remove();
+    }
+}
+
+// Draws ArcGIS Online selection highlights with perfectly aligned cyan arrowheads, end caps, & dash borders
+function highlightSelectedFeature(err) {
+    clearFeatureHighlight();
+    var vectorDrawingOverlay = document.getElementById('vectorDrawingOverlay');
+    if (!vectorDrawingOverlay || !err) return;
+
+    // Exclude hit-target overlay circles from highlight cloning
+    const targetElements = vectorDrawingOverlay.querySelectorAll(`[data-issue-id="${err.id}"]:not([data-hit-target="true"])`);
+    if (!targetElements || targetElements.length === 0) return;
+
+    const ctm = vectorDrawingOverlay.getScreenCTM();
+    const scale = ctm ? Math.hypot(ctm.a, ctm.b) : 1;
+
+    let currentZoom = 0;
+    let minZoom = -2;
+    let maxZoom = 5;
+    if (typeof leafletMap !== 'undefined' && leafletMap) {
+        currentZoom = leafletMap.getZoom();
+        minZoom = typeof initialFitZoom !== 'undefined' ? initialFitZoom : (leafletMap.getMinZoom() || -2);
+        maxZoom = leafletMap.getMaxZoom() || 5;
+    }
+
+    const zoomRange = Math.max(0.5, maxZoom - minZoom);
+    const zoomRatio = Math.max(0, Math.min(1, (currentZoom - minZoom) / zoomRange));
+    
+    // Screen offset in pixels (e.g. 1.5px to 3.5px border halo)
+    const offsetPx = 1.5 + (zoomRatio * 2.0);
+    // Convert screen pixel offset to map/canvas coordinate units
+    const offsetCanvas = scale > 0 ? (offsetPx / scale) : offsetPx;
+
+    // Standard working cyan marker for arrowheads
+    let cyanMarker = vectorDrawingOverlay.querySelector('#arrowhead-cyan');
+    if (!cyanMarker) {
+        let defs = vectorDrawingOverlay.querySelector('defs');
+        if (!defs) {
+            defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            vectorDrawingOverlay.appendChild(defs);
+        }
+        cyanMarker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+        cyanMarker.id = 'arrowhead-cyan';
+        cyanMarker.setAttribute('markerWidth', '5');
+        cyanMarker.setAttribute('markerHeight', '3.5');
+        cyanMarker.setAttribute('refX', '1');
+        cyanMarker.setAttribute('refY', '1.75');
+        cyanMarker.setAttribute('orient', 'auto');
+        cyanMarker.innerHTML = '<polygon points="0 0, 5 1.75, 0 3.5" fill="#00ffff" />';
+        defs.appendChild(cyanMarker);
+    }
+
+    const highlightGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    highlightGroup.id = 'active-issue-highlight';
+    highlightGroup.setAttribute('class', 'pointer-events-none');
+
+    const cyanColor = '#00ffff';
+
+    targetElements.forEach(el => {
+        const clone = el.cloneNode(true);
+        
+        clone.removeAttribute('data-issue-id');
+        clone.querySelectorAll('[data-issue-id]').forEach(child => child.removeAttribute('data-issue-id'));
+
+        clone.removeAttribute('id');
+        clone.removeAttribute('onclick');
+        clone.setAttribute('class', 'pointer-events-none');
+
+        // Strip badge numbers, KEEP annotation text nodes (.annotation-text-node)
+        clone.querySelectorAll('text:not(.annotation-text-node)').forEach(t => t.remove());
+
+        const isGroup = clone.tagName.toLowerCase() === 'g';
+        const shapes = isGroup 
+            ? Array.from(clone.querySelectorAll('line, circle, polygon, path, rect, text')) 
+            : [clone];
+
+        shapes.forEach(shape => {
+            const tagName = shape.tagName.toLowerCase();
+            const fillAttr = shape.getAttribute('fill') || '';
+            const isSolidFill = fillAttr && fillAttr !== 'none' && !fillAttr.endsWith('0d') && !fillAttr.endsWith('22') && !fillAttr.endsWith('25');
+            const isBadgeCircle = tagName === 'circle' && isSolidFill;
+            const isTextNode = tagName === 'text';
+
+            shape.style.mixBlendMode = 'normal';
+            shape.setAttribute('stroke-opacity', '1.0');
+
+            if (isBadgeCircle) {
+                shape.setAttribute('fill', 'none');
+                shape.setAttribute('stroke', cyanColor);
+                shape.setAttribute('stroke-width', (offsetPx * 2).toFixed(2));
+                shape.setAttribute('vector-effect', 'non-scaling-stroke');
+                shape.style.vectorEffect = 'non-scaling-stroke';
+            } else if (err.tool_type === 'highlight') {
+                shape.setAttribute('stroke', cyanColor);
+                shape.setAttribute('stroke-opacity', '0.35');
+                shape.style.mixBlendMode = 'multiply';
+                
+                const origWidthMapUnits = parseFloat(shape.getAttribute('stroke-width')) || 12;
+                shape.setAttribute('stroke-width', (origWidthMapUnits + (offsetCanvas * 2)).toFixed(2));
+                shape.removeAttribute('vector-effect');
+                shape.style.vectorEffect = 'none';
+            } else if (isTextNode) {
+                const textStrokeWidth = 0.8 + (zoomRatio * 2.8);
+
+                shape.setAttribute('fill', 'none');
+                shape.setAttribute('stroke', cyanColor);
+                shape.setAttribute('stroke-width', textStrokeWidth.toFixed(2));
+                shape.setAttribute('vector-effect', 'non-scaling-stroke');
+                shape.style.vectorEffect = 'non-scaling-stroke';
+                shape.setAttribute('stroke-linejoin', 'round');
+            } else if (tagName === 'line') {
+                shape.setAttribute('fill', 'none');
+                shape.setAttribute('stroke', cyanColor);
+                shape.setAttribute('stroke-linecap', 'butt');
+
+                const x1 = parseFloat(shape.getAttribute('x1')) || 0;
+                const y1 = parseFloat(shape.getAttribute('y1')) || 0;
+                const x2 = parseFloat(shape.getAttribute('x2')) || 0;
+                const y2 = parseFloat(shape.getAttribute('y2')) || 0;
+                const origWidth = parseFloat(shape.getAttribute('stroke-width')) || 4;
+
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+                const len = Math.hypot(dx, dy);
+
+                let ux = 0, uy = 0;
+                if (len > 0) {
+                    ux = dx / len;
+                    uy = dy / len;
+                }
+
+                const isArrow = shape.hasAttribute('marker-end');
+
+                // Shift line start backward by offsetCanvas
+                const newX1 = x1 - (ux * offsetCanvas);
+                const newY1 = y1 - (uy * offsetCanvas);
+
+                // For arrows, keep end point at arrow tip; for lines/dashes, extend end point forward by offsetCanvas
+                const newX2 = isArrow ? x2 : (x2 + (ux * offsetCanvas));
+                const newY2 = isArrow ? y2 : (y2 + (uy * offsetCanvas));
+
+                shape.setAttribute('x1', newX1.toFixed(2));
+                shape.setAttribute('y1', newY1.toFixed(2));
+                shape.setAttribute('x2', newX2.toFixed(2));
+                shape.setAttribute('y2', newY2.toFixed(2));
+
+                shape.setAttribute('stroke-width', (origWidth + (offsetCanvas * 2)).toFixed(2));
+                shape.removeAttribute('vector-effect');
+                shape.style.vectorEffect = 'none';
+
+                if (isArrow) {
+                    shape.setAttribute('marker-end', 'url(#arrowhead-cyan)');
+                }
+
+                // Handle dashed lines: expand cyan dash length & shrink gap length
+                const origDash = shape.getAttribute('stroke-dasharray');
+                if (origDash) {
+                    const parts = origDash.split(',').map(v => parseFloat(v.trim()) || 0);
+                    if (parts.length >= 2) {
+                        const dashLen = parts[0];
+                        const gapLen = parts[1];
+
+                        const cyanDashLen = dashLen + (offsetCanvas * 2);
+                        const cyanGapLen = Math.max(0, gapLen - (offsetCanvas * 2));
+
+                        shape.setAttribute('stroke-dasharray', `${cyanDashLen.toFixed(2)},${cyanGapLen.toFixed(2)}`);
+                        shape.setAttribute('stroke-dashoffset', '0');
+                    }
+                }
+            } else {
+                // Polygon, circle (non-badge), path, rect, etc.
+                shape.setAttribute('fill', 'none');
+                shape.setAttribute('stroke', cyanColor);
+                
+                const origWidthMapUnits = parseFloat(shape.getAttribute('stroke-width')) || 4;
+                shape.setAttribute('stroke-width', (origWidthMapUnits + (offsetCanvas * 2)).toFixed(2));
+                shape.removeAttribute('vector-effect');
+                shape.style.vectorEffect = 'none';
+                shape.setAttribute('stroke-linejoin', 'miter');
+            }
+            shape.style.filter = 'none';
+        });
+
+        highlightGroup.appendChild(clone);
+    });
+
+    vectorDrawingOverlay.insertBefore(highlightGroup, vectorDrawingOverlay.firstChild);
 }
 
 // Database Actions
@@ -577,17 +1288,23 @@ async function handlePinClick(e, err) {
 async function fetchPins() {
     if (typeof currentMapId === 'undefined' || !currentMapId) return;
 
+    // 1. Hide vector pins overlay until fetch & render are completely done
+    var overlay = document.getElementById('vectorDrawingOverlay');
+    if (overlay) overlay.style.visibility = 'hidden';
+
     const activeEl = document.activeElement;
     const isUserEditing = activeEl && sidebarList && sidebarList.contains(activeEl) && 
         (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT');
 
-    if (isUserEditing && !newlyCreatedPinId) return;
+    if (isUserEditing && !newlyCreatedPinId) {
+        if (overlay) overlay.style.visibility = 'visible';
+        return;
+    }
 
     if (sidebarList) sidebarScrollPosition = sidebarList.scrollTop;
 
     await initUserIdentifier();
 
-    // Fetch pins with nested join to get map_groups.created_by
     const { data: errors, error } = await supabaseClient
         .from('map_errors')
         .select(`
@@ -605,7 +1322,6 @@ async function fetchPins() {
     if (!error && errors) { 
         activeErrors = errors; 
 
-        // Batch fetch comments AND attachments for all issues to populate cache
         const issueIds = activeErrors.map(e => e.id);
         if (issueIds.length > 0) {
             const [{ data: commentsData }, { data: attachmentsData }] = await Promise.all([
@@ -630,7 +1346,13 @@ async function fetchPins() {
             }
         }
 
+        // 2. Yield main thread frame, render UI, then reveal pins
+        await new Promise(r => setTimeout(r, 0));
         renderUI(); 
+        
+        if (overlay) overlay.style.visibility = 'visible';
+    } else {
+        if (overlay) overlay.style.visibility = 'visible';
     }
 }
 
@@ -907,14 +1629,38 @@ function renderUI() {
             const pointradius = baseSize;
             const strokeWidthVal = Math.round(baseSize * (8 / 18));
 
-            if (err.tool_type === 'line' || err.tool_type === 'dash' || err.tool_type === 'arrow') {
+        if (err.tool_type === 'line' || err.tool_type === 'dash' || err.tool_type === 'arrow') {
                 try {
                     const coords = typeof err.geometry_data === 'string' ? JSON.parse(err.geometry_data) : err.geometry_data;
                     if (coords) {
                         const pixelX1 = (coords.x1 / 100) * canvasWidth;
                         const pixelY1 = (coords.y1 / 100) * canvasHeight;
-                        const pixelX2 = (coords.x2 / 100) * canvasWidth;
-                        const pixelY2 = (coords.y2 / 100) * canvasHeight;
+                        const origPixelX2 = (coords.x2 / 100) * canvasWidth;
+                        const origPixelY2 = (coords.y2 / 100) * canvasHeight;
+
+                        let pixelX2 = origPixelX2;
+                        let pixelY2 = origPixelY2;
+
+                        // Trim line end & align marker base for arrows
+                        if (err.tool_type === 'arrow') {
+                            ['arrowhead', 'arrowhead-fixed'].forEach(markerId => {
+                                const m = document.getElementById(markerId) || vectorDrawingOverlay.querySelector(`#${markerId}`);
+                                if (m) m.setAttribute('refX', '1');
+                            });
+
+                            const dx = pixelX2 - pixelX1;
+                            const dy = pixelY2 - pixelY1;
+                            const len = Math.hypot(dx, dy);
+
+                            if (len > 0) {
+                                const targetTrim = strokeWidthVal * 2.2;
+                                const maxTrim = len * 0.7;
+                                const trimPx = Math.min(targetTrim, maxTrim);
+
+                                pixelX2 = pixelX2 - (dx / len) * trimPx;
+                                pixelY2 = pixelY2 - (dy / len) * trimPx;
+                            }
+                        }
 
                         const svgLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                         svgLine.setAttribute('class', 'svg-markup-line cursor-pointer pointer-events-auto');
@@ -924,16 +1670,32 @@ function renderUI() {
                         svgLine.setAttribute('y2', pixelY2);
                         svgLine.setAttribute('stroke', colorHex); 
                         svgLine.setAttribute('stroke-width', strokeWidthVal);
+                        svgLine.setAttribute('data-issue-id', err.id);
                         
                         if (err.tool_type === 'dash') svgLine.setAttribute('stroke-dasharray', `${strokeWidthVal * 2},${strokeWidthVal * 2}`);
                         if (err.tool_type === 'arrow') svgLine.setAttribute('marker-end', isFixed ? 'url(#arrowhead-fixed)' : 'url(#arrowhead)');
                         
                         svgLine.addEventListener('click', (e) => handlePinClick(e, err));
                         vectorDrawingOverlay.appendChild(svgLine);
+
+                        // Invisible hit-target circle over the arrowhead tip (tagged to avoid highlight cloning)
+                        if (err.tool_type === 'arrow') {
+                            const arrowHitTarget = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                            arrowHitTarget.setAttribute('cx', origPixelX2);
+                            arrowHitTarget.setAttribute('cy', origPixelY2);
+                            arrowHitTarget.setAttribute('r', Math.max(pointradius, strokeWidthVal * 2.2));
+                            arrowHitTarget.setAttribute('fill', 'transparent');
+                            arrowHitTarget.setAttribute('class', 'cursor-pointer pointer-events-auto');
+                            arrowHitTarget.setAttribute('data-issue-id', err.id);
+                            arrowHitTarget.setAttribute('data-hit-target', 'true');
+                            arrowHitTarget.onclick = (e) => handlePinClick(e, err);
+                            vectorDrawingOverlay.appendChild(arrowHitTarget);
+                        }
                         
                         const startGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                         startGroup.setAttribute('class', 'cursor-pointer pointer-events-auto');
                         startGroup.onclick = (e) => handlePinClick(e, err);
+                        startGroup.setAttribute('data-issue-id', err.id);
 
                         const startCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                         startCircle.setAttribute('cx', pixelX1);
@@ -977,6 +1739,7 @@ function renderUI() {
                         svgCircle.setAttribute('stroke-width', strokeWidthVal);
                         svgCircle.setAttribute('fill', `${colorHex}0d`);
                         svgCircle.addEventListener('click', (e) => handlePinClick(e, err));
+                        svgCircle.setAttribute('data-issue-id', err.id);
                         vectorDrawingOverlay.appendChild(svgCircle);
 
                         const badgeX = pixelCx - radius;
@@ -985,6 +1748,7 @@ function renderUI() {
                         const edgeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                         edgeGroup.setAttribute('class', 'cursor-pointer pointer-events-auto');
                         edgeGroup.onclick = (e) => handlePinClick(e, err);
+                        edgeGroup.setAttribute('data-issue-id', err.id);
 
                         const circleBadge = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                         circleBadge.setAttribute('cx', badgeX);
@@ -1029,6 +1793,7 @@ function renderUI() {
                         svgLine.setAttribute('stroke-opacity', '0.3');
                         svgLine.setAttribute('stroke-width', highlightWidth);
                         svgLine.setAttribute('stroke-linecap', 'round');
+                        svgLine.setAttribute('data-issue-id', err.id);
                         svgLine.style.mixBlendMode = 'multiply';
                         
                         svgLine.addEventListener('click', (e) => handlePinClick(e, err));
@@ -1037,6 +1802,7 @@ function renderUI() {
                         const startGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                         startGroup.setAttribute('class', 'cursor-pointer pointer-events-auto');
                         startGroup.onclick = (e) => handlePinClick(e, err);
+                        startGroup.setAttribute('data-issue-id', err.id);
 
                         const startCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                         startCircle.setAttribute('cx', pixelX1);
@@ -1081,12 +1847,14 @@ function renderUI() {
                         svgPoly.setAttribute('stroke-width', strokeWidthVal);
                         svgPoly.setAttribute('fill', `${colorHex}0d`);
                         svgPoly.addEventListener('click', (e) => handlePinClick(e, err));
+                        svgPoly.setAttribute('data-issue-id', err.id);
                         vectorDrawingOverlay.appendChild(svgPoly);
 
                         if (startPx) {
                             const startGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                             startGroup.setAttribute('class', 'cursor-pointer pointer-events-auto');
                             startGroup.onclick = (e) => handlePinClick(e, err);
+                            startGroup.setAttribute('data-issue-id', err.id);
 
                             const badgeCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                             badgeCircle.setAttribute('cx', startPx.x);
@@ -1139,6 +1907,7 @@ function renderUI() {
                 const textGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                 textGroup.setAttribute('class', 'cursor-pointer pointer-events-auto');
                 textGroup.onclick = (e) => handlePinClick(e, err);
+                textGroup.setAttribute('data-issue-id', err.id);
 
                 const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 circle.setAttribute('cx', pixelX);
@@ -1163,7 +1932,8 @@ function renderUI() {
                 annotationText.setAttribute('font-weight', 'bold');
                 annotationText.setAttribute('font-size', `${pointradius * 1.1}px`);
                 annotationText.setAttribute('xml:space', 'preserve');
-                
+                annotationText.setAttribute('class', 'annotation-text-node');
+
                 if (textAngle !== 0) {
                     annotationText.setAttribute('transform', `rotate(${textAngle}, ${pixelX}, ${pixelY})`);
                 }
@@ -1180,6 +1950,7 @@ function renderUI() {
                 const pointGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                 pointGroup.setAttribute('class', 'cursor-pointer pointer-events-auto');
                 pointGroup.onclick = (e) => handlePinClick(e, err);
+                pointGroup.setAttribute('data-issue-id', err.id);
 
                 const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 circle.setAttribute('cx', pixelX);
@@ -1223,7 +1994,7 @@ function renderUI() {
 
     let inputToFocus = null;
 
-errorsToRender.forEach((err, index) => {
+    errorsToRender.forEach((err, index) => {
         const pinNumber = err.error_number || '?';
         const isFixed = err.status === 'fixed';
         const userCanEdit = canEditIssue(err);
@@ -1260,19 +2031,6 @@ errorsToRender.forEach((err, index) => {
 
         // Shows 'fixed by' only if fixed by someone who isn't the group creator
         const isFixedByNonUploader = isFixed && Boolean(fixerNorm) && Boolean(uploaderNorm) && (fixerNorm !== uploaderNorm);
-
-        // Debug Logging for Fixed Cards
-        if (isFixed) {
-            console.log(`[Card #${err.error_number || err.id} Debug]`, {
-                fixedByRaw: err.fixed_by,
-                fixerNorm: fixerNorm,
-                mapUploaderRaw: rawUploader,
-                uploaderNorm: uploaderNorm,
-                windowCurrentMap: window.currentMap || null,
-                windowCurrentGroup: window.currentGroup || null,
-                isFixedByNonUploaderVerdict: isFixedByNonUploader
-            });
-        }
 
         let displayCreator = '';
 
@@ -1419,14 +2177,14 @@ errorsToRender.forEach((err, index) => {
             deleteBtn.classList.remove('hidden');
         }
 
-// --- LAYER PICKER LOGIC ---
+// --- LAYER PICKER LOGIC (Deferred On-Demand Rendering) ---
         const layerBtn = item.querySelector(`#layer-btn-${err.id}`);
         const layerMenu = item.querySelector(`#layer-menu-${err.id}`);
         const layerSearch = item.querySelector(`#layer-search-${err.id}`);
         const layerOptions = item.querySelector(`#layer-options-${err.id}`);
 
         if (layerBtn && layerMenu && userCanEdit) {
-            const renderOptions = (filterText = '') => {
+            const renderOptionsOnDemand = (filterText = '') => {
                 const query = filterText.toLowerCase().trim();
                 let html = `<button type="button" data-value="" class="layer-option-item w-full text-left px-2 py-1 rounded hover:bg-slate-100 text-slate-500 italic flex justify-between items-center ${!err.gis_layer ? 'font-bold text-blue-600 bg-blue-50/50' : ''}">
                     <span>Unassigned</span>
@@ -1447,38 +2205,32 @@ errorsToRender.forEach((err, index) => {
                 layerOptions.innerHTML = html;
 
                 layerOptions.querySelectorAll('.layer-option-item').forEach(optBtn => {
-                    optBtn.addEventListener('click', (e) => {
+                    optBtn.onclick = (e) => {
                         e.stopPropagation();
                         const val = optBtn.getAttribute('data-value');
                         saveInlineLayer(err.id, val);
                         layerMenu.classList.add('hidden');
-                    });
+                    };
                 });
             };
 
-            layerBtn.addEventListener('click', (e) => {
+            layerBtn.onclick = (e) => {
                 e.stopPropagation();
                 const isHidden = layerMenu.classList.contains('hidden');
                 document.querySelectorAll('.layer-menu').forEach(m => m.classList.add('hidden'));
                 if (isHidden) {
                     layerMenu.classList.remove('hidden');
-                    layerSearch.value = '';
-                    renderOptions('');
-                    layerSearch.focus();
+                    if (layerSearch) layerSearch.value = '';
+                    renderOptionsOnDemand('');
+                    if (layerSearch) layerSearch.focus();
                 }
-            });
+            };
 
-            layerSearch.addEventListener('input', (e) => renderOptions(e.target.value));
-            layerSearch.addEventListener('keydown', (e) => e.stopPropagation());
-            layerSearch.addEventListener('keyup', (e) => e.stopPropagation());
-        }
-
-        const zoomBtn = item.querySelector(`#zoom-btn-${err.id}`);
-        if (zoomBtn) {
-            zoomBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                zoomToIssue(err);
-            });
+            if (layerSearch) {
+                layerSearch.oninput = (e) => renderOptionsOnDemand(e.target.value);
+                layerSearch.onkeydown = (e) => e.stopPropagation();
+                layerSearch.onkeyup = (e) => e.stopPropagation();
+            }
         }
 
         // --- COMMENTS LOGIC ---
@@ -1533,22 +2285,14 @@ const renderAttachmentsSync = (errObj, container) => {
                     const fileName = f.file_name || '';
                     const fileUrl = f.file_url || '';
 
-                    const isTiff = /\.(tiff?)$/i.test(fileName) || fileUrl.match(/\.(tiff?)/i);
                     const isImage = /\.(png|jpe?g|webp|gif|svg|tiff?)$/i.test(fileName) || fileUrl.match(/\.(png|jpe?g|webp|gif|svg|tiff?)/i);
 
                     if (isImage) {
-                        const cachedData = isTiff && window.tiffCache && window.tiffCache[fileUrl];
-                        const initialSrc = isTiff ? (cachedData || 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=') : fileUrl;
-                        const isPendingTiff = isTiff && !cachedData;
-
-                        // Hardcode initial button position for TIFFs to top-right on-image
-                        const initialBtnPos = isTiff ? 'top-1 right-1 bg-white/50' : 'left-full top-1/2 -translate-y-1/2 ml-1 bg-white/30';
-
                         html += `
                             <div class="w-full flex items-center justify-center py-0.5 ${imgBgClass}">
                                 <div class="relative inline-flex items-center justify-center max-w-full">
-                                    <img src="${initialSrc}" data-src="${fileUrl}" data-tiff="${isTiff ? 'true' : 'false'}" alt="Attachment" class="preview-image-el ${isPendingTiff ? 'opacity-40 animate-pulse bg-slate-200 min-h-[100px]' : ''} max-w-full max-h-52 object-contain rounded hover:opacity-95 transition cursor-pointer block" />
-                                    ${canEdit ? `<button data-file-id="${f.id}" type="button" title="Delete attachment" class="delete-image-btn absolute ${initialBtnPos} hover:bg-white/80 rounded px-1.5 py-0.5 text-xs text-red-500 hover:text-red-700 font-bold cursor-pointer transition shadow-2xs backdrop-blur-2xs z-10">✕</button>` : ''}
+                                    <img src="${fileUrl}" data-src="${fileUrl}" alt="Attachment" class="preview-image-el max-w-full max-h-52 object-contain rounded hover:opacity-95 transition cursor-pointer block" />
+                                    ${canEdit ? `<button data-file-id="${f.id}" type="button" title="Delete attachment" class="delete-image-btn absolute top-1 right-1 bg-white/50 hover:bg-white/80 rounded px-1.5 py-0.5 text-xs text-red-500 hover:text-red-700 font-bold cursor-pointer transition shadow-2xs backdrop-blur-2xs z-10">✕</button>` : ''}
                                 </div>
                             </div>
                         `;
@@ -1566,7 +2310,6 @@ const renderAttachmentsSync = (errObj, container) => {
                 });
                 container.innerHTML = html;
 
-                // Adjust delete buttons based on image rendered width
                 const adjustDeleteButtons = () => {
                     const card = container.closest('[data-card-issue-id]') || container;
                     if (!card) return;
@@ -1578,14 +2321,6 @@ const renderAttachmentsSync = (errObj, container) => {
                         const img = imgWrap.querySelector('img');
                         if (!img) return;
 
-                        // Hardcode TIFFs to ALWAYS use top-right on-image positioning
-                        if (img.getAttribute('data-tiff') === 'true') {
-                            btn.classList.remove('left-full', 'top-1/2', '-translate-y-1/2', 'ml-1', 'bg-white/30');
-                            btn.classList.add('top-1', 'right-1', 'bg-white/50');
-                            return;
-                        }
-
-                        // Standard images dynamic overflow check
                         btn.classList.add('left-full', 'top-1/2', '-translate-y-1/2', 'ml-1', 'bg-white/30');
                         btn.classList.remove('top-1', 'right-1', 'bg-white/50');
 
@@ -1598,17 +2333,6 @@ const renderAttachmentsSync = (errObj, container) => {
                     });
                 };
 
-                // Trigger TIFF decoding
-                container.querySelectorAll('img[data-tiff="true"]').forEach(imgEl => {
-                    const rawTiffUrl = imgEl.getAttribute('data-src');
-                    if (rawTiffUrl && !imgEl.src.startsWith('data:image/png')) {
-                        loadTiffImage(imgEl, rawTiffUrl, () => {
-                            adjustDeleteButtons();
-                        });
-                    }
-                });
-
-                // Initialize positioning
                 adjustDeleteButtons();
                 container.querySelectorAll('.preview-image-el').forEach(imgEl => {
                     if (!imgEl.complete) {
@@ -1619,11 +2343,10 @@ const renderAttachmentsSync = (errObj, container) => {
                         e.stopPropagation();
                         e.preventDefault();
                         const imgSrc = imgEl.getAttribute('data-src');
-                        const cachedPng = window.tiffCache[imgSrc] || imgSrc;
                         if (typeof openImageModal === 'function') {
-                            openImageModal(cachedPng);
+                            openImageModal(imgSrc);
                         } else {
-                            window.open(cachedPng, '_blank');
+                            window.open(imgSrc, '_blank');
                         }
                     });
                 });
@@ -1654,50 +2377,104 @@ const renderAttachmentsSync = (errObj, container) => {
         // Render attachments synchronously on card load
         renderAttachmentsSync(err, attachmentsContainer);
 
-        if (attachBtn && fileInput) {
+if (attachBtn && fileInput) {
             attachBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 fileInput.click();
             });
 
             fileInput.addEventListener('change', async (e) => {
-                const files = Array.from(e.target.files);
-                if (files.length === 0) return;
+                const rawFiles = Array.from(e.target.files);
+                if (rawFiles.length === 0) return;
 
                 const userIdent = getCurrentUserIdentifierSync();
 
-                for (const file of files) {
-                    const filePath = `issue_${err.id}/${Date.now()}_${file.name}`;
-                    const { data: uploadData, error: uploadError } = await supabaseClient.storage
-                        .from('issue_files')
-                        .upload(filePath, file);
-
-                    if (!uploadError && uploadData) {
-                        const { data: publicUrlData } = supabaseClient.storage.from('issue_files').getPublicUrl(filePath);
-                        const newAttachment = {
-                            error_id: err.id,
-                            file_name: file.name,
-                            file_url: publicUrlData.publicUrl,
-                            uploaded_by: userIdent
-                        };
-
-                        const { data: insertData } = await supabaseClient
-                            .from('map_error_attachments')
-                            .insert([newAttachment])
-                            .select();
-
-                        if (insertData && insertData.length > 0) {
-                            newAttachment.id = insertData[0].id;
-                        }
-
-                        if (!window.activeAttachments[err.id]) window.activeAttachments[err.id] = [];
-                        window.activeAttachments[err.id].push(newAttachment);
-                        renderAttachmentsSync(err, attachmentsContainer);
-                    } else if (uploadError) {
-                        console.error('[Attachment Upload Error]', uploadError.message);
+                // 1. Show dynamic loading card in attachments container
+                if (attachmentsContainer) {
+                    attachmentsContainer.classList.remove('hidden');
+                    let loaderEl = document.getElementById(`upload-loader-${err.id}`);
+                    if (!loaderEl) {
+                        loaderEl = document.createElement('div');
+                        loaderEl.id = `upload-loader-${err.id}`;
+                        loaderEl.className = 'flex items-center space-x-2 px-2.5 py-1.5 bg-blue-50 border border-blue-200/80 rounded-md text-xs font-semibold text-blue-700 shadow-2xs w-full animate-pulse my-0.5';
+                        loaderEl.innerHTML = `
+                            <svg class="animate-spin h-3.5 w-3.5 text-blue-600 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span id="upload-status-text-${err.id}" class="truncate">Processing file...</span>
+                        `;
+                        attachmentsContainer.appendChild(loaderEl);
                     }
                 }
-                fileInput.value = '';
+
+                // 2. Disable attach button during processing
+                if (attachBtn) {
+                    attachBtn.disabled = true;
+                    attachBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+
+                try {
+                    for (let file of rawFiles) {
+                        const statusText = document.getElementById(`upload-status-text-${err.id}`);
+                        const isTiff = /\.(tiff?)$/i.test(file.name);
+
+                        if (isTiff && statusText) {
+                            statusText.textContent = `Converting ${file.name} to PNG...`;
+                        } else if (statusText) {
+                            statusText.textContent = `Uploading ${file.name}...`;
+                        }
+
+                        if (isTiff) {
+                            try {
+                                file = await convertFileIfTiff(file);
+                            } catch (convErr) {
+                                console.error('[TIFF Conversion Error]', convErr);
+                            }
+                        }
+
+                        const filePath = `issue_${err.id}/${Date.now()}_${file.name}`;
+                        const { data: uploadData, error: uploadError } = await supabaseClient.storage
+                            .from('issue_files')
+                            .upload(filePath, file);
+
+                        if (!uploadError && uploadData) {
+                            const { data: publicUrlData } = supabaseClient.storage.from('issue_files').getPublicUrl(filePath);
+                            const newAttachment = {
+                                error_id: err.id,
+                                file_name: file.name,
+                                file_url: publicUrlData.publicUrl,
+                                uploaded_by: userIdent
+                            };
+
+                            const { data: insertData } = await supabaseClient
+                                .from('map_error_attachments')
+                                .insert([newAttachment])
+                                .select();
+
+                            if (insertData && insertData.length > 0) {
+                                newAttachment.id = insertData[0].id;
+                            }
+
+                            if (!window.activeAttachments[err.id]) window.activeAttachments[err.id] = [];
+                            window.activeAttachments[err.id].push(newAttachment);
+                        } else if (uploadError) {
+                            console.error('[File Upload Error]', uploadError.message);
+                        }
+                    }
+                } finally {
+                    // 3. Remove loader and re-enable controls
+                    const loaderEl = document.getElementById(`upload-loader-${err.id}`);
+                    if (loaderEl) loaderEl.remove();
+
+                    if (attachBtn) {
+                        attachBtn.disabled = false;
+                        attachBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    }
+
+                    renderAttachmentsSync(err, attachmentsContainer);
+                    fileInput.value = '';
+                }
             });
         }
 
@@ -1831,6 +2608,13 @@ const renderAttachmentsSync = (errObj, container) => {
         textarea.style.height = 'auto';
         textarea.style.height = textarea.scrollHeight + 'px';
     });
+
+    // Re-apply selection outline if a popover is currently active
+    if (window.activePopoverError && floatingPopover && !floatingPopover.classList.contains('hidden')) {
+        highlightSelectedFeature(window.activePopoverError);
+    }
+
+    updateSidebarCardHighlight();
 
     if (sidebarList) {
         sidebarList.scrollTop = sidebarScrollPosition;

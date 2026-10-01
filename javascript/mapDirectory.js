@@ -347,67 +347,90 @@ async function fetchMapsDirectory() {
                 delGroupBtn.className = "text-xs bg-[#3c2b30] hover:bg-[#a50d15] text-[#ff6467] hover:text-white px-2 py-0.5 rounded font-bold transition shrink-0 cursor-pointer select-none border border-[#ff6467]/20";
                 delGroupBtn.innerText = "Delete";
                 
-                delGroupBtn.onclick = async (e) => {
-                    e.stopPropagation();
-                    
-                    // If group has maps, query for unresolved issue counts
-                    if (groupMaps.length > 0) {
-                        const mapIds = groupMaps.map(m => m.id);
-                        const { data: openErrors } = await supabaseClient
-                            .from('map_errors')
-                            .select('map_id')
-                            .in('map_id', mapIds)
-                            .eq('status', 'open');
+        delGroupBtn.onclick = async (e) => {
+            e.stopPropagation();
 
-                        const openCounts = {};
-                        (openErrors || []).forEach(err => {
-                            openCounts[err.map_id] = (openCounts[err.map_id] || 0) + 1;
-                        });
+            if (groupMaps.length > 0) {
+                const mapIds = groupMaps.map(m => m.id);
 
-                        const formattedMapNames = groupMaps
-                            .map(m => {
-                                const cleanName = m.map_name.replace(/\.(pdf|tif|tiff)$/i, '');
-                                const count = openCounts[m.id] || 0;
-                                const countBadge = count > 0 
-                                    ? ` <span class="text-amber-400 font-semibold text-[11px]">(${count} unresolved issue${count === 1 ? '' : 's'})</span>` 
-                                    : '';
-                                return `<span class="font-bold text-slate-100">${cleanName}</span>${countBadge}`;
-                            })
-                            .join('<br>');
+                const { data: openErrors } = await supabaseClient
+                    .from('map_errors')
+                    .select('map_id')
+                    .in('map_id', mapIds)
+                    .eq('status', 'open');
 
-                        const confirmDelete = await showCustomConfirm(
-                            `Delete Folder ${group.group_name}?`,
-                            `Deleting "${group.group_name}" will delete all maps and marked issues.<br><br>${formattedMapNames}`,
-                            "Delete",
-                            "Cancel",
-                            true
-                        );
-                        if (!confirmDelete) return;
-                    }
+                const openCounts = {};
+                (openErrors || []).forEach(err => {
+                    openCounts[err.map_id] = (openCounts[err.map_id] || 0) + 1;
+                });
 
-                    // Perform deletion directly if empty, or after confirmation if populated
-                    if (groupMaps.length > 0) {
-                        const storagePaths = groupMaps
-                            .map(m => m.file_url.split('/assessor-maps/'))
-                            .filter(parts => parts.length > 1)
-                            .map(parts => parts[1]);
+                const formattedMapNames = groupMaps
+                    .map(m => {
+                        const cleanName = m.map_name.replace(/\.(pdf|tif|tiff)$/i, '');
+                        const count = openCounts[m.id] || 0;
+                        const countBadge = count > 0 
+                            ? ` <span class="text-amber-400 font-semibold text-[11px]">(${count} unresolved issue${count === 1 ? '' : 's'})</span>` 
+                            : '';
+                        return `<span class="font-bold text-slate-100">${cleanName}</span>${countBadge}`;
+                    })
+                    .join('<br>');
 
-                        if (storagePaths.length > 0) {
-                            await supabaseClient.storage.from('assessor-maps').remove(storagePaths);
+                const confirmDelete = await showCustomConfirm(
+                    `Delete Folder ${group.group_name}?`,
+                    `Deleting "${group.group_name}" will delete all maps and marked issues.<br><br>${formattedMapNames}`,
+                    "Delete",
+                    "Cancel",
+                    true
+                );
+                if (!confirmDelete) return;
+
+                // A. Delete physical issue attachment photos across all maps in folder from issue_files bucket
+                const { data: mapIssues } = await supabaseClient
+                    .from('map_errors')
+                    .select('id')
+                    .in('map_id', mapIds);
+
+                if (mapIssues && mapIssues.length > 0) {
+                    const issueIds = mapIssues.map(i => i.id);
+                    const { data: issueAttachments } = await supabaseClient
+                        .from('map_error_attachments')
+                        .select('file_url')
+                        .in('error_id', issueIds);
+
+                    if (issueAttachments && issueAttachments.length > 0) {
+                        const issueStoragePaths = issueAttachments
+                            .map(a => typeof getStoragePathFromUrl === 'function' ? getStoragePathFromUrl(a.file_url, 'issue_files') : null)
+                            .filter(Boolean);
+
+                        if (issueStoragePaths.length > 0) {
+                            await supabaseClient.storage.from('issue_files').remove(issueStoragePaths);
                         }
-
-                        await supabaseClient.from('maps_registry').delete().eq('group_id', group.id);
                     }
-                    
-                    await supabaseClient.from('map_groups').delete().eq('id', group.id);
+                }
 
-                    const wasActiveMapDeleted = groupMaps.some(m => m.id === currentMapId);
-                    if (wasActiveMapDeleted) {
-                        location.reload();
-                    } else {
-                        await fetchMapsDirectory();
-                    }
-                };
+                // B. Delete PDF map files from assessor-maps bucket
+                const storagePaths = groupMaps
+                    .map(m => m.file_url.split('/assessor-maps/'))
+                    .filter(parts => parts.length > 1)
+                    .map(parts => parts[1]);
+
+                if (storagePaths.length > 0) {
+                    await supabaseClient.storage.from('assessor-maps').remove(storagePaths);
+                }
+
+                // C. Delete map DB records (Postgres CASCADE wipes DB issues, comments & attachments)
+                await supabaseClient.from('maps_registry').delete().in('id', mapIds);
+            }
+
+            await supabaseClient.from('map_groups').delete().eq('id', group.id);
+
+            const wasActiveMapDeleted = groupMaps.some(m => m.id === currentMapId);
+            if (wasActiveMapDeleted) {
+                location.reload();
+            } else {
+                await fetchMapsDirectory();
+            }
+        };
                 groupHeader.appendChild(delGroupBtn);
             }
             
@@ -473,7 +496,7 @@ async function fetchMapsDirectory() {
                     return a.localeCompare(b);
                 });
 
-                sortedReviewers.forEach((prefix) => {
+sortedReviewers.forEach((prefix) => {
                     const badge = document.createElement('button');
                     badge.className = "w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-bold tracking-widest shrink-0 cursor-pointer transition-all duration-150 relative saturate-85";
                     
@@ -557,8 +580,35 @@ async function fetchMapsDirectory() {
                         );
 
                         if (confirmDeletion) {
+                            // 1. Delete physical issue attachment photos for this map from issue_files bucket
+                            const { data: mapIssues } = await supabaseClient
+                                .from('map_errors')
+                                .select('id')
+                                .eq('map_id', map.id);
+
+                            if (mapIssues && mapIssues.length > 0) {
+                                const issueIds = mapIssues.map(i => i.id);
+                                const { data: issueAttachments } = await supabaseClient
+                                    .from('map_error_attachments')
+                                    .select('file_url')
+                                    .in('error_id', issueIds);
+
+                                if (issueAttachments && issueAttachments.length > 0) {
+                                    const attachmentPaths = issueAttachments
+                                        .map(a => typeof getStoragePathFromUrl === 'function' ? getStoragePathFromUrl(a.file_url, 'issue_files') : null)
+                                        .filter(Boolean);
+
+                                    if (attachmentPaths.length > 0) {
+                                        await supabaseClient.storage.from('issue_files').remove(attachmentPaths);
+                                    }
+                                }
+                            }
+
+                            // 2. Delete PDF map file from assessor-maps bucket
                             const urlParts = map.file_url.split('/assessor-maps/');
                             if (urlParts.length > 1) await supabaseClient.storage.from('assessor-maps').remove([urlParts[1]]);
+
+                            // 3. Delete map database record
                             await supabaseClient.from('maps_registry').delete().eq('id', map.id);
 
                             if (currentMapId === map.id) {

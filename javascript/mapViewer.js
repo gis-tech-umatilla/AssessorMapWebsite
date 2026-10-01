@@ -407,6 +407,15 @@ function scheduleViewportPatchThrottled() {
 }
 
 async function loadActiveMap(mapObj) {
+    window.hasLoadedPinsForCurrentMap = false;
+
+    // Immediately hide and clear old map issues from sidebar
+    const sidebarList = document.getElementById('sidebarList');
+    if (sidebarList) {
+        sidebarList.style.visibility = 'hidden';
+        sidebarList.innerHTML = '';
+    }
+
     const rawUrl = mapObj?.file_url || mapObj?.url || mapObj?.fileUrl;
     if (!mapObj || !rawUrl) return;
 

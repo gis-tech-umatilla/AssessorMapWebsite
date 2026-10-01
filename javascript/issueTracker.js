@@ -92,6 +92,23 @@ if (mapViewport) {
         }
     });
 }
+
+// Helper to parse relative storage path from a Supabase public URL
+function getStoragePathFromUrl(fileUrl, bucketName = 'issue_files') {
+    if (!fileUrl) return null;
+    try {
+        const marker = `/${bucketName}/`;
+        const idx = fileUrl.indexOf(marker);
+        if (idx !== -1) {
+            const rawPath = fileUrl.substring(idx + marker.length);
+            return decodeURIComponent(rawPath);
+        }
+    } catch (e) {
+        console.error('[Storage Path Error]', e);
+    }
+    return null;
+}
+
 // Converts a TIFF File object into a standard PNG File before upload
 async function convertFileIfTiff(file) {
     const isTiff = /\.(tiff?)$/i.test(file.name) || file.type.includes('tiff');
@@ -1288,9 +1305,15 @@ async function handlePinClick(e, err) {
 async function fetchPins() {
     if (typeof currentMapId === 'undefined' || !currentMapId) return;
 
-    // 1. Hide vector pins overlay until fetch & render are completely done
     var overlay = document.getElementById('vectorDrawingOverlay');
-    if (overlay) overlay.style.visibility = 'hidden';
+    var sidebarList = document.getElementById('sidebarList');
+    const isColdStart = !window.hasLoadedPinsForCurrentMap;
+
+    // Only hide overlay & right sidebar on cold map load
+    if (isColdStart) {
+        if (overlay) overlay.style.visibility = 'hidden';
+        if (sidebarList) sidebarList.style.visibility = 'hidden';
+    }
 
     const activeEl = document.activeElement;
     const isUserEditing = activeEl && sidebarList && sidebarList.contains(activeEl) && 
@@ -1298,6 +1321,7 @@ async function fetchPins() {
 
     if (isUserEditing && !newlyCreatedPinId) {
         if (overlay) overlay.style.visibility = 'visible';
+        if (sidebarList) sidebarList.style.visibility = 'visible';
         return;
     }
 
@@ -1346,13 +1370,17 @@ async function fetchPins() {
             }
         }
 
-        // 2. Yield main thread frame, render UI, then reveal pins
+        // Render UI, then reveal map overlay & sidebar simultaneously
         await new Promise(r => setTimeout(r, 0));
         renderUI(); 
         
         if (overlay) overlay.style.visibility = 'visible';
+        if (sidebarList) sidebarList.style.visibility = 'visible';
+        window.hasLoadedPinsForCurrentMap = true;
     } else {
         if (overlay) overlay.style.visibility = 'visible';
+        if (sidebarList) sidebarList.style.visibility = 'visible';
+        window.hasLoadedPinsForCurrentMap = true;
     }
 }
 
@@ -2271,7 +2299,7 @@ function renderUI() {
         const fileInput = item.querySelector(`#file-input-${err.id}`);
         const attachmentsContainer = item.querySelector(`#attachments-container-${err.id}`);
 
-const renderAttachmentsSync = (errObj, container) => {
+        const renderAttachmentsSync = (errObj, container) => {
             if (!container || !errObj) return;
             const files = (window.activeAttachments && window.activeAttachments[errObj.id]) || [];
             const isFixed = errObj.status === 'fixed';
@@ -2351,7 +2379,7 @@ const renderAttachmentsSync = (errObj, container) => {
                     });
                 });
 
-                if (canEdit) {
+        if (canEdit) {
                     container.querySelectorAll('.delete-file-btn, .delete-image-btn').forEach(btn => {
                         btn.addEventListener('mousedown', (e) => e.preventDefault());
                         btn.addEventListener('click', async (e) => {
@@ -2359,13 +2387,36 @@ const renderAttachmentsSync = (errObj, container) => {
                             e.preventDefault();
                             const fileId = btn.getAttribute('data-file-id');
 
+                            // Locate the target attachment object in active attachments cache
+                            const fileList = window.activeAttachments[errObj.id] || [];
+                            const targetFile = fileList.find(f => String(f.id) === String(fileId));
+
+                            // 1. Instantly remove from local memory & UI
                             if (window.activeAttachments[errObj.id]) {
                                 window.activeAttachments[errObj.id] = window.activeAttachments[errObj.id].filter(f => String(f.id) !== String(fileId));
                             }
                             renderAttachmentsSync(errObj, container);
 
+                            if (targetFile && targetFile.file_url) {
+                                // 2. Delete physical object from Supabase Storage
+                                const storagePath = getStoragePathFromUrl(targetFile.file_url, 'issue_files');
+                                if (storagePath) {
+                                    const { error: storageErr } = await supabaseClient.storage
+                                        .from('issue_files')
+                                        .remove([storagePath]);
+
+                                    if (storageErr) console.error('[Storage Delete Error]', storageErr.message);
+                                }
+                            }
+
+                            // 3. Delete database record
                             if (fileId) {
-                                await supabaseClient.from('map_error_attachments').delete().eq('id', fileId);
+                                const { error: dbErr } = await supabaseClient
+                                    .from('map_error_attachments')
+                                    .delete()
+                                    .eq('id', fileId);
+
+                                if (dbErr) console.error('[DB Delete Error]', dbErr.message);
                             }
                         });
                     });
@@ -2478,7 +2529,7 @@ if (attachBtn && fileInput) {
             });
         }
 
-        const inlineInput = item.querySelector(`#input-${err.id}`);
+const inlineInput = item.querySelector(`#input-${err.id}`);
         if (inlineInput) {
             if (userCanEdit && inlineInput.tagName === 'TEXTAREA') {
                 inlineInput.placeholder = err.tool_type === 'text' ? 'Type text to overlay on map...' : 'Type error description...';
@@ -2491,6 +2542,7 @@ if (attachBtn && fileInput) {
                 inlineInput.classList.remove('bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
                 inlineInput.classList.add('bg-white', 'text-slate-800');
 
+                // Clipboard paste listener for direct image attachment
                 inlineInput.addEventListener('paste', async (e) => {
                     const clipboardData = e.clipboardData || window.clipboardData;
                     if (!clipboardData || !clipboardData.items) return;
@@ -2543,13 +2595,13 @@ if (attachBtn && fileInput) {
                     }
                 });
             } else if (!userCanEdit && inlineInput.tagName === 'DIV') {
-                // Div logic handled natively by item.innerHTML injection above
+                // Read-only text mode handled by innerHTML template above
             }
         }
 
-        // Card-wide click listener: Clicks around the image will now toggle issue status
+        // Card-wide click listener: Clicks on card padding toggle issue status
         item.addEventListener('click', (e) => {
-            if (e.target.closest('textarea, input, button, a, .layer-picker-wrapper, .delete-file-btn, .preview-image-el')) {
+            if (e.target.closest('textarea, input, button, a, .layer-picker-wrapper, .delete-file-btn, .delete-image-btn, .preview-image-el')) {
                 return;
             }
             togglePinStatus(err.id, err.status);
@@ -2586,11 +2638,57 @@ if (attachBtn && fileInput) {
             if (userCanEdit && typeof newlyCreatedPinId !== 'undefined' && err.id === newlyCreatedPinId) inputToFocus = inlineInput;
         }
 
+        // Delete Pin Button (Bulk cleans physical files from Supabase Storage + DB records)
         const finalDelBtn = item.querySelector('.delete-pin-btn');
         if (isNewCard && userCanEdit) {
             finalDelBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                await supabaseClient.from('map_errors').delete().eq('id', err.id);
+
+                const issueId = err.id;
+
+                // 1. Gather all attached records for this issue from cache
+                const attachments = (window.activeAttachments && window.activeAttachments[issueId]) || [];
+
+                // 2. Extract relative storage paths for physical files
+                const pathsToRemove = attachments
+                    .map(a => typeof getStoragePathFromUrl === 'function' ? getStoragePathFromUrl(a.file_url, 'issue_files') : null)
+                    .filter(Boolean);
+
+                // 3. Bulk delete physical files from Supabase Storage bucket
+                if (pathsToRemove.length > 0) {
+                    const { error: storageErr } = await supabaseClient.storage
+                        .from('issue_files')
+                        .remove(pathsToRemove);
+
+                    if (storageErr) console.error('[Bulk Storage Delete Error]', storageErr.message);
+                }
+
+                // 4. Delete related database records
+                await Promise.all([
+                    supabaseClient.from('map_error_attachments').delete().eq('error_id', issueId),
+                    supabaseClient.from('map_error_comments').delete().eq('error_id', issueId)
+                ]);
+
+                // 5. Delete main map issue record
+                const { error: issueDelErr } = await supabaseClient
+                    .from('map_errors')
+                    .delete()
+                    .eq('id', issueId);
+
+                if (issueDelErr) console.error('[Issue Delete Error]', issueDelErr.message);
+
+                // 6. Wipe local memory state & active popovers
+                if (window.activeAttachments) delete window.activeAttachments[issueId];
+                if (window.activeComments) delete window.activeComments[issueId];
+                if (window.openCommentDrawers) {
+                    window.openCommentDrawers.delete(issueId);
+                    window.openCommentDrawers.delete(String(issueId));
+                }
+
+                if (window.activePopoverError && window.activePopoverError.id === issueId) {
+                    if (typeof hideIssuePopover === 'function') hideIssuePopover('Issue deleted');
+                }
+
                 fetchPins();
             });
         }
@@ -2604,6 +2702,7 @@ if (attachBtn && fileInput) {
         }
     });
 
+    // Adjust textarea scroll heights across sidebar
     document.querySelectorAll('#sidebarList textarea').forEach(textarea => {
         textarea.style.height = 'auto';
         textarea.style.height = textarea.scrollHeight + 'px';

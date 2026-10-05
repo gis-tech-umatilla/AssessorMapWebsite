@@ -483,17 +483,25 @@ function zoomToIssue(err) {
 
     zoomTimeout = setTimeout(unlockZoom, 1200);
 
-    if (typeof leafletMap !== 'undefined' && leafletMap) {
+        if (typeof leafletMap !== 'undefined' && leafletMap) {
         leafletMap.stop();
-        leafletMap.once('moveend', unlockZoom);
-
-        leafletMap.flyToBounds([southWest, northEast], {
+        
+        // CRITICAL FIX: flyToBounds crashes when map animations are disabled.
+        // Use fitBounds with animate: false for an instant, reliable jump.
+        leafletMap.fitBounds([southWest, northEast], {
             padding: [80, 80],
-            maxZoom: 2.0,
-            duration: 1.0,
-            easeLinearity: 0.25
+            maxZoom: typeof initialFitZoom !== 'undefined' ? initialFitZoom + 2.5 : 2.0,
+            animate: false
         });
-    } 
+
+        // Trigger highlights and patches for the new view
+        highlightSelectedFeature(err);
+        if (typeof scheduleViewportPatch === 'function') {
+            scheduleViewportPatch(false);
+        }
+        
+        setTimeout(unlockZoom, 150);
+    }
     else if (typeof panzoomInstance !== 'undefined' && panzoomInstance) {
         const centerXPct = (minXPct + maxXPct) / 2;
         const centerYPct = (minYPct + maxYPct) / 2;
@@ -2526,6 +2534,16 @@ if (attachBtn && fileInput) {
                     renderAttachmentsSync(err, attachmentsContainer);
                     fileInput.value = '';
                 }
+            });
+        }
+
+        // --- ZOOM BUTTON LOGIC ---
+        const zoomBtn = item.querySelector(`#zoom-btn-${err.id}`);
+        if (zoomBtn) {
+            zoomBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                zoomToIssue(err);
             });
         }
 

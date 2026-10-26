@@ -4,7 +4,6 @@ const authErrorMsg = document.getElementById('authErrorMsg');
 const userBadge = document.getElementById('userBadge');
 const signOutBtn = document.getElementById('signOutBtn');
 
-// Ensure all script files are parsed into global scope before running auth check
 document.addEventListener('DOMContentLoaded', () => {
     initAuthCheck();
 });
@@ -19,57 +18,78 @@ async function initAuthCheck() {
 }
 
 function getEmailPrefix(email) {
-    if (!email) return 'Unknown';
+    if (!email) return 'unknown';
     return email.split('@')[0].toLowerCase();
+}
+
+function initializeRealtimeSync() {
+    if (window.realtimeChannel) return;
+    if (typeof supabaseClient === 'undefined') return;
+
+    window.realtimeChannel = supabaseClient.channel('global-sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'maps_registry' }, () => {
+            if (typeof fetchMapsDirectory === 'function') fetchMapsDirectory();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'map_errors' }, () => {
+            if (typeof fetchPins === 'function') fetchPins();
+        })
+        .subscribe();
 }
 
 function evaluateUserSession(session) {
     if (session && session.user) {
         const userEmail = session.user.email.toLowerCase();
-        const isPermitted = EXPLICIT_ALLOWED_EMAILS.map(e => e.toLowerCase()).includes(userEmail);
+        const allowed = (typeof EXPLICIT_ALLOWED_EMAILS !== 'undefined' ? EXPLICIT_ALLOWED_EMAILS : [])
+            .map(e => e.toLowerCase());
 
-        if (isPermitted) {
-            authGate.classList.add('hidden');
-            userBadge.innerText = userEmail;
-            authErrorMsg.classList.add('hidden');
-            fetchMapsDirectory();
-            initializeRealtimeSync();
+        if (allowed.includes(userEmail)) {
+            if (authGate) authGate.classList.add('hidden');
+            if (userBadge) userBadge.innerText = userEmail;
+
+            // 1. Issue Tracker (index.html): Direct triggers
+            if (typeof fetchMapsDirectory === 'function') {
+                fetchMapsDirectory();
+            }
+            if (typeof initializeRealtimeSync === 'function') {
+                initializeRealtimeSync();
+            }
+
+            // 2. Comparison Tool (comparisontool.html): Event trigger
+            window.dispatchEvent(new CustomEvent('auth:success', {
+                detail: {
+                    user: session.user,
+                    email: userEmail,
+                    prefix: getEmailPrefix(userEmail)
+                }
+            }));
         } else {
-            authGate.classList.remove('hidden');
-            authErrorMsg.innerText = `Access Denied: ${userEmail} is not authorized to use this tool.`;
-            authErrorMsg.classList.remove('hidden');
-            userBadge.innerText = "";
+            if (authGate) authGate.classList.remove('hidden');
+            if (authErrorMsg) {
+                authErrorMsg.innerText = `Access Denied: ${userEmail} is not authorized.`;
+                authErrorMsg.classList.remove('hidden');
+            }
         }
     } else {
-        authGate.classList.remove('hidden');
-        userBadge.innerText = "";
-        if (realtimeChannel) {
-            supabaseClient.removeChannel(realtimeChannel);
-            realtimeChannel = null;
+        if (authGate) authGate.classList.remove('hidden');
+    }
+}
+
+if (googleSignInBtn) {
+    googleSignInBtn.addEventListener('click', async () => {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'google',
+            options: { redirectTo: window.location.href }
+        });
+        if (error && authErrorMsg) {
+            authErrorMsg.innerText = "OAuth Error: " + error.message;
+            authErrorMsg.classList.remove('hidden');
         }
-    }
-}
-
-function initializeRealtimeSync() {
-    if (realtimeChannel) return;
-    realtimeChannel = supabaseClient.channel('global-sync')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'maps_registry' }, () => fetchMapsDirectory())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'map_errors' }, () => fetchPins())
-        .subscribe();
-}
-
-googleSignInBtn.addEventListener('click', async () => {
-    const { error } = await supabaseClient.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: 'https://gis-tech-umatilla.github.io/AssessorMapWebsite/' }
     });
-    if (error) {
-        authErrorMsg.innerText = "OAuth Error: " + error.message;
-        authErrorMsg.classList.remove('hidden');
-    }
-});
+}
 
-signOutBtn.addEventListener('click', async () => {
-    await supabaseClient.auth.signOut();
-    window.location.reload();
-});
+if (signOutBtn) {
+    signOutBtn.addEventListener('click', async () => {
+        await supabaseClient.auth.signOut();
+        window.location.reload();
+    });
+}

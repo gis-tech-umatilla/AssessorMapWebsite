@@ -1,0 +1,100 @@
+.error-dot { 
+    transform: translate(-50%, -50%);
+    transform-origin: center center;
+    width: 14px !important;
+    height: 14px !important;
+    font-size: 8px !important;
+}
+
+.map-text-annotation {
+    transform: translate(0%, -50%);
+    transform-origin: left center;
+    font-size: 6px !important;
+    height: 14px !important;
+}
+
+.map-text-annotation span {
+    font-size: 8px !important;
+}
+
+/* Custom Sleek Scrollbars */
+#mapList, #sidebarList, body {
+    scrollbar-width: thin;
+}
+
+#mapList {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+#mapList::-webkit-scrollbar {
+    width: 6px;
+}
+#mapList::-webkit-scrollbar-track {
+    background: transparent;
+}
+#mapList::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 9999px;
+}
+#mapList::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.45);
+}
+
+#sidebarList {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+#sidebarList::-webkit-scrollbar {
+    width: 6px;
+}
+#sidebarList::-webkit-scrollbar-track {
+    background: transparent;
+}
+#sidebarList::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 9999px;
+}
+#sidebarList::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.4);
+}
+
+/* Inset Canvas Render Quality */
+#insetPreviewCanvas {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: smooth;
+    image-rendering: auto;
+    transition: transform 0.2s ease-out;
+    transform-origin: center center;
+}
+
+/* SVG Overlay: Strictly bounded to the map sheet to prevent bleeding into the void */
+#vectorDrawingOverlay {
+    overflow: hidden !important;
+    pointer-events: none !important;
+}
+
+#vectorDrawingOverlay * {
+    pointer-events: none !important;
+}
+
+/* Comparison Tool Calibration Crosshair across whole viewport */
+#leafletPrimaryMap.calib-mode,
+#leafletPrimaryMap.calib-mode .leaflet-container,
+#leafletPrimaryMap.calib-mode * {
+    cursor: crosshair !important;
+}
+
+/* Leaflet Container Defaults */
+.leaflet-container {
+    background-color: #cbd5e1 !important;
+}
+
+#zoomControls {
+    z-index: 2000;
+    align-items: center;
+}
+
+#swipeHandle {
+    touch-action: none;
+    user-select: none;
+}

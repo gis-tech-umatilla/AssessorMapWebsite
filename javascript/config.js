@@ -128,24 +128,34 @@ const FALLBACK_USER_COLORS = [
 
 /**
  * Returns the primary single hex color for a user.
+ * Supports full prefixes ('matthew.lynch'), emails, and first names ('matthew').
  */
 function getUserHexColor(prefix) {
     if (!prefix) return '#94a3b8'; // Default Slate-400
-    const key = prefix.toLowerCase();
+    const clean = prefix.replace(/@.*$/, '').toLowerCase().trim();
     
-    if (USER_COLORS[key]) {
-        return USER_COLORS[key];
+    // 1. Exact match (e.g., 'matthew.lynch')
+    if (USER_COLORS[clean]) {
+        return USER_COLORS[clean];
     }
     
+    // 2. First-name match (e.g., 'aspen' -> 'aspen.buckingham')
+    for (const [key, val] of Object.entries(USER_COLORS)) {
+        if (key.startsWith(clean) || clean.startsWith(key.split('.')[0])) {
+            return val;
+        }
+    }
+    
+    // 3. Fallback color generation for unregistered users
     let hash = 0;
-    for (let i = 0; i < key.length; i++) {
-        hash = key.charCodeAt(i) + ((hash << 5) - hash);
+    for (let i = 0; i < clean.length; i++) {
+        hash = clean.charCodeAt(i) + ((hash << 5) - hash);
     }
     return FALLBACK_USER_COLORS[Math.abs(hash) % FALLBACK_USER_COLORS.length];
 }
 
 /**
- * Returns element style classes where bg and border match the primary user color, with white text.
+ * Returns element style classes and hex for dynamic badge styling.
  */
 function getUserColorStyle(prefix) {
     const hex = getUserHexColor(prefix);
@@ -175,3 +185,11 @@ function getFormattedFirstName(prefix) {
     if (firstNameRaw === 'mckenzie') return 'McKenzie';
     return firstNameRaw.charAt(0).toUpperCase() + firstNameRaw.slice(1);
 }
+
+// Attach directly to window for modular scripts
+window.USER_COLORS = USER_COLORS;
+window.FALLBACK_USER_COLORS = FALLBACK_USER_COLORS;
+window.getUserHexColor = getUserHexColor;
+window.getUserColorStyle = getUserColorStyle;
+window.getUserTextColorClass = getUserTextColorClass;
+window.getFormattedFirstName = getFormattedFirstName;

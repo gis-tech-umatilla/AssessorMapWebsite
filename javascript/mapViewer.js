@@ -238,7 +238,26 @@ function scheduleViewportPatch(isMoving = false) {
 
     const visibleBounds = leafletMap.getBounds();
 
-    // If active patch already covers current screen space (plus 40% margin), keep it!
+    // --- Detect Which Sheet is Being Viewed ---
+    const centerLng = visibleBounds.getCenter().lng;
+    const gap = 60;
+    const w1 = sheet1Bounds[1][1];
+    
+    // If the center of the screen has passed the gap, we are looking at Sheet 2
+    const isViewingSheet2 = sheet2Bounds && currentPage2 && centerLng > (w1 + (gap / 2));
+    
+    const targetPage = isViewingSheet2 ? currentPage2 : currentPage1;
+    const targetBounds = isViewingSheet2 ? sheet2Bounds : sheet1Bounds;
+
+    // Bounds format: [[south, west], [north, east]]
+    const boundSouth = targetBounds[0][0]; 
+    const boundWest = targetBounds[0][1];  // 0 for sheet1, w1+gap for sheet2
+    const boundNorth = targetBounds[1][0]; // height
+    const boundEast = targetBounds[1][1];  // w1 for sheet1, w1+gap+w2 for sheet2
+    const targetW = boundEast - boundWest;
+    const targetH = boundNorth - boundSouth;
+
+    // If active patch already covers current screen space (plus 40% margin), keep it
     if (patchOverlay && activePatchBounds) {
         const zoomDiff = Math.abs(currentZoom - (lastPatchZoom || 0));
         if (zoomDiff < 0.12 && activePatchBounds.contains(visibleBounds)) {
@@ -257,36 +276,43 @@ function scheduleViewportPatch(isMoving = false) {
         if (isPatchRendering) return;
         const taskId = ++activePatchTaskId;
 
-        let south = Math.max(0, Math.min(sheet1Bounds[1][0], visibleBounds.getSouth()));
-        let north = Math.max(0, Math.min(sheet1Bounds[1][0], visibleBounds.getNorth()));
-        let west = Math.max(0, Math.min(sheet1Bounds[1][1], visibleBounds.getWest()));
-        let east = Math.max(0, Math.min(sheet1Bounds[1][1], visibleBounds.getEast()));
+        // Clamp visible bounds strictly to the TARGET sheet's boundaries
+        let south = Math.max(boundSouth, Math.min(boundNorth, visibleBounds.getSouth()));
+        let north = Math.max(boundSouth, Math.min(boundNorth, visibleBounds.getNorth()));
+        let west = Math.max(boundWest, Math.min(boundEast, visibleBounds.getWest()));
+        let east = Math.max(boundWest, Math.min(boundEast, visibleBounds.getEast()));
 
         if (east <= west || north <= south) {
             hidePatchOverlay();
             return;
         }
 
-        const h1 = sheet1Bounds[1][0];
-        const w1 = sheet1Bounds[1][1];
-
-        // 40% Cushion so slow floating stays sharp without triggering new renders constantly
+        // 40% Cushion so slow floating stays sharp
         const padLng = (east - west) * 0.40;
         const padLat = (north - south) * 0.40;
 
-        const cropWest = Math.max(0, west - padLng);
-        const cropEast = Math.min(w1, east + padLng);
-        const cropSouth = Math.max(0, south - padLat);
-        const cropNorth = Math.min(h1, north + padLat);
+        const cropWest = Math.max(boundWest, west - padLng);
+        const cropEast = Math.min(boundEast, east + padLng);
+        const cropSouth = Math.max(boundSouth, south - padLat);
+        const cropNorth = Math.min(boundNorth, north + padLat);
 
-        const pdfViewport1 = currentPage1.getViewport({ scale: 1.0 });
-        const pdfW = pdfViewport1.width;
-        const pdfH = pdfViewport1.height;
+        const pdfViewport = targetPage.getViewport({ scale: 1.0 });
+        const pdfW = pdfViewport.width;
+        const pdfH = pdfViewport.height;
 
-        const cropPdfX = (cropWest / w1) * pdfW;
-        const cropPdfW = ((cropEast - cropWest) / w1) * pdfW;
-        const cropPdfY = ((h1 - cropNorth) / h1) * pdfH;
-        const cropPdfH = ((cropNorth - cropSouth) / h1) * pdfH;
+        // Normalize coordinates relative to the target sheet (0 to 1) 
+        // to account for Sheet 2's rightward shift in the coordinate space
+        const relativeWest = cropWest - boundWest;
+        const relativeEast = cropEast - boundWest;
+        const relativeSouth = cropSouth - boundSouth;
+        const relativeNorth = cropNorth - boundSouth;
+
+        const cropPdfX = (relativeWest / targetW) * pdfW;
+        const cropPdfW = ((relativeEast - relativeWest) / targetW) * pdfW;
+        
+        // Y is inverted in PDF vs Leaflet CRS.Simple
+        const cropPdfY = ((targetH - relativeNorth) / targetH) * pdfH;
+        const cropPdfH = ((relativeNorth - relativeSouth) / targetH) * pdfH;
 
         const swPoint = leafletMap.latLngToContainerPoint(L.latLng(cropSouth, cropWest));
         const nePoint = leafletMap.latLngToContainerPoint(L.latLng(cropNorth, cropEast));
@@ -312,13 +338,13 @@ function scheduleViewportPatch(isMoving = false) {
         patchCanvas.height = patchPixelH;
 
         const ctx = patchCanvas.getContext('2d');
-        const renderViewport = currentPage1.getViewport({ scale: targetScale });
+        const renderViewport = targetPage.getViewport({ scale: targetScale });
         const transformMatrix = [1, 0, 0, 1, -cropPdfX * targetScale, -cropPdfY * targetScale];
 
         isPatchRendering = true;
 
         try {
-            activeRenderTask = currentPage1.render({ 
+            activeRenderTask = targetPage.render({ 
                 canvasContext: ctx, 
                 viewport: renderViewport, 
                 transform: transformMatrix 
@@ -357,6 +383,7 @@ function scheduleViewportPatch(isMoving = false) {
                 }
             }
         } catch (err) {
+            // Handled silently to prevent console spam if rendering is cancelled mid-flight
         } finally {
             isPatchRendering = false;
         }

@@ -163,16 +163,21 @@ pdfUpload.addEventListener('change', async (e) => {
             targetGroupId = latestUserGroup.id;
             calculatedSortOrder = latestUserGroupCount;
         } else {
-            let maxGroupNum = 0;
+            // Collect all numbers currently used by this user's groups
+            const usedNumbers = new Set();
             userGroups.forEach(g => {
                 const match = g.group_name.match(/\d+/);
                 if (match) {
-                    const num = parseInt(match[0], 10);
-                    if (num > maxGroupNum) maxGroupNum = num;
+                    usedNumbers.add(parseInt(match[0], 10));
                 }
             });
 
-            const nextGroupNum = maxGroupNum > 0 ? maxGroupNum + 1 : userGroups.length + 1;
+            // Find the lowest available number starting from 1
+            let nextGroupNum = 1;
+            while (usedNumbers.has(nextGroupNum)) {
+                nextGroupNum++;
+            }
+
             const uniqueGroupName = `${userFirstName} ${nextGroupNum}`;
 
             const { data: newGroup, error: gErr } = await supabaseClient
@@ -675,16 +680,21 @@ async function fetchMapsDirectory() {
                 const userGroups = rawGroups.filter(g => (g.created_by || '').toLowerCase() === currentUserPrefix.toLowerCase());
                 const userFirstName = getFormattedFirstName(currentUserPrefix);
 
-                let maxGroupNum = 0;
+                // Collect all numbers currently used by this user's groups
+                const usedNumbers = new Set();
                 userGroups.forEach(g => {
                     const match = g.group_name.match(/\d+/);
                     if (match) {
-                        const num = parseInt(match[0], 10);
-                        if (num > maxGroupNum) maxGroupNum = num;
+                        usedNumbers.add(parseInt(match[0], 10));
                     }
                 });
 
-                const nextGroupNum = maxGroupNum > 0 ? maxGroupNum + 1 : userGroups.length + 1;
+                // Find the lowest available number starting from 1
+                let nextGroupNum = 1;
+                while (usedNumbers.has(nextGroupNum)) {
+                    nextGroupNum++;
+                }
+
                 const uniqueGroupName = `${userFirstName} ${nextGroupNum}`;
 
                 const { data: newGroup, error: gErr } = await supabaseClient

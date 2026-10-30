@@ -883,7 +883,7 @@ function triggerIssuePopover(clickEvent, err) {
         ` : '';
     }
 
-    // Attachments Stream (TIFF logic removed)
+    // Attachments Stream
     const cachedAttachments = (window.activeAttachments && window.activeAttachments[err.id]) || [];
     let attachmentsHTML = '';
     if (cachedAttachments.length > 0) {
@@ -934,7 +934,7 @@ function triggerIssuePopover(clickEvent, err) {
                             <span class="text-slate-400 font-normal">replied</span>
                         </span>
                     </div>
-                    <div class="text-xs text-slate-800 font-medium whitespace-pre-wrap leading-tight break-words px-0.5">${c.comment_text}</div>
+                    <div class="text-xs text-slate-800 font-medium whitespace-pre-wrap leading-tight break-words px-0.5 select-text cursor-text">${c.comment_text}</div>
                 </div>
             `;
         });
@@ -969,7 +969,7 @@ function triggerIssuePopover(clickEvent, err) {
         </div>
 
         <div class="w-full space-y-1">
-            <div class="w-full px-1 py-0.5 text-xs font-semibold text-slate-800 whitespace-pre-wrap break-words leading-snug">
+            <div class="description-text w-full px-1 py-0.5 text-xs font-semibold text-slate-800 whitespace-pre-wrap break-words leading-snug select-text cursor-text">
                 ${err.description ? err.description : '<span class="italic text-slate-400 font-normal">No description</span>'}
             </div>
 
@@ -1002,7 +1002,7 @@ function triggerIssuePopover(clickEvent, err) {
         };
     }
 
-    // Attachments preview logic for popover (TIFF loader removed)
+    // Attachments preview logic for popover
     floatingPopover.querySelectorAll('.preview-popover-img').forEach(imgEl => {
         imgEl.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1444,12 +1444,12 @@ function renderCommentsSync(err, item, forceShowInput = false) {
                         <span class="text-slate-400 font-normal">replied</span>
                     </span>
                 </div>
-                <div class="text-xs text-slate-800 font-medium whitespace-pre-wrap leading-tight break-words px-0.5">${c.comment_text}</div>
+                <div class="text-xs text-slate-800 font-medium whitespace-pre-wrap leading-tight break-words px-0.5 select-text cursor-text">${c.comment_text}</div>
             </div>
         `;
     });
 
-const userCommentText = userComment ? userComment.comment_text : '';
+    const userCommentText = userComment ? userComment.comment_text : '';
     const userCommentId = userComment ? userComment.id : null;
 
     // --- ADD THE LINES HERE ---
@@ -2106,7 +2106,7 @@ function renderUI() {
         const descriptionHTML = userCanEdit ? `
             <textarea id="input-${err.id}" rows="1" oninput="this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px';" class="w-full border border-slate-300 rounded px-2 py-1 text-xs font-medium text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 select-text resize-none overflow-hidden block bg-white" style="height: auto; min-height: 28px;"></textarea>
         ` : `
-            <div id="input-${err.id}" class="w-full px-1 py-0.5 text-xs font-semibold text-slate-800 whitespace-pre-wrap break-words leading-snug">${err.description ? err.description : '<span class="italic text-slate-400 font-normal">No description</span>'}</div>
+            <div id="input-${err.id}" class="description-text w-full px-1 py-0.5 text-xs font-semibold text-slate-800 whitespace-pre-wrap break-words leading-snug select-text cursor-text">${err.description ? err.description : '<span class="italic text-slate-400 font-normal">No description</span>'}</div>
         `;
 
         // 2. Conditional Layer Display (Interactive picker for authors, plain text for non-authors)
@@ -2611,14 +2611,46 @@ const inlineInput = item.querySelector(`#input-${err.id}`);
                 // Read-only text mode handled by innerHTML template above
             }
         }
-
         // Card-wide click listener: Clicks on card padding toggle issue status
-        item.addEventListener('click', (e) => {
-            if (e.target.closest('textarea, input, button, a, .layer-picker-wrapper, .delete-file-btn, .delete-image-btn, .preview-image-el')) {
+        if (isNewCard) {
+            item.addEventListener('pointerdown', () => {
+                const active = document.activeElement;
+                item._hadFocusInside = Boolean(
+                    active && item.contains(active) && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT')
+                );
+            });
+
+            // Bubbles up whenever any input or textarea inside this card loses focus
+            item.addEventListener('focusout', (e) => {
+                if (e.target && (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT')) {
+                    item._lastInputBlurTime = Date.now();
+                }
+            });
+        }
+
+        // Card-wide click listener (using .onclick to prevent duplicate listener stacking)
+        item.onclick = (e) => {
+            // 1. Exclude clicks on interactive elements, selectable description text, and comments
+            if (e.target.closest('textarea, input, button, a, .layer-picker-wrapper, .delete-file-btn, .delete-image-btn, .preview-image-el, .description-text, .saved-comment-card')) {
                 return;
             }
+
+            // 2. Abort if user is actively highlighting/selecting text
+            if (window.getSelection().toString().trim().length > 0) {
+                return;
+            }
+
+            // 3. Abort if this click was simply removing focus from a description or comment in this card
+            const wasTypingInCard = item._hadFocusInside;
+            item._hadFocusInside = false;
+            const recentlyBlurred = (Date.now() - (item._lastInputBlurTime || 0)) < 300;
+
+            if (wasTypingInCard || recentlyBlurred) {
+                return;
+            }
+
             togglePinStatus(err.id, err.status);
-        });
+        };
 
         if (err.tool_type === 'text') {
             if (isNewCard && userCanEdit && inlineInput && inlineInput.tagName === 'TEXTAREA') {
@@ -2633,7 +2665,10 @@ const inlineInput = item.querySelector(`#input-${err.id}`);
                 });
                 inlineInput.addEventListener('keydown', (e) => {
                     e.stopPropagation();
-                    if (e.key === 'Enter') inlineInput.blur();
+                    if (e.key === 'Enter') {
+                        e.preventDefault(); // <-- Added
+                        inlineInput.blur();
+                    }
                 });
                 inlineInput.addEventListener('keyup', (e) => e.stopPropagation());
                 inlineInput.addEventListener('blur', () => saveInlineDescription(err.id, inlineInput.value));
@@ -2643,7 +2678,10 @@ const inlineInput = item.querySelector(`#input-${err.id}`);
             if (isNewCard && userCanEdit && inlineInput && inlineInput.tagName === 'TEXTAREA') {
                 inlineInput.addEventListener('keydown', (e) => {
                     e.stopPropagation();
-                    if (e.key === 'Enter') inlineInput.blur();
+                    if (e.key === 'Enter') {
+                        e.preventDefault(); // <-- Added
+                        inlineInput.blur();
+                    }
                 });
                 inlineInput.addEventListener('keyup', (e) => e.stopPropagation());
                 inlineInput.addEventListener('blur', () => saveInlineDescription(err.id, inlineInput.value));

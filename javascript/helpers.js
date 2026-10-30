@@ -76,9 +76,13 @@ window.MapService = {
 
     sortReviewers(reviewersArr) {
         const order = window.REVIEWER_SORT_ORDER || [];
+        
+        // Normalize: strip emails, remove whitespace, and lowercase
+        const clean = (val) => (val || '').toString().replace(/@.*$/, '').trim().toLowerCase();
+
         return [...reviewersArr].sort((a, b) => {
-            const indexA = order.indexOf(a);
-            const indexB = order.indexOf(b);
+            const indexA = order.indexOf(clean(a));
+            const indexB = order.indexOf(clean(b));
 
             if (indexA !== -1 && indexB !== -1) return indexA - indexB;
             if (indexA !== -1) return -1;

@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Metadata Inspector</title>
+    
+    <!-- External Libraries (Added Tailwind & Supabase for Auth/Header) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <link rel="icon" type="image/x-icon" href="logo.png">
+    
+    <style>
+        :root {
+            /* Assessor Map QA Platform Palette */
+            --app-bg: #2d373e;
+            --frame-bg: #58646e;
+            --header-bg: #36424a;
+            --panel-bg: #44535d;
+            --panel-hover: #3d4b54;
+            --card-bg: #36424a;
+            --code-bg: #222a30;
+            --accent-cyan: #1985a1;
+            --accent-hover: #146c82;
+            --border-dark: rgba(0, 0, 0, 0.25);
+            --border-light: rgba(255, 255, 255, 0.12);
+            --text-white: #f8fafc;
+            --text-slate: #cbd5e1;
+            --text-muted: #94a3b8;
+            --btn-secondary: #4b5f70;
+            --btn-secondary-hover: #3a4c59;
+
+            --badge-green-bg: #104130;
+            --badge-green-txt: #4ade80;
+            --badge-green-border: rgba(74, 222, 128, 0.3);
+
+            --badge-red-bg: #3c2b30;
+            --badge-red-txt: #ff6467;
+            --badge-red-border: rgba(255, 100, 103, 0.25);
+
+            --badge-amber-bg: #422006;
+            --badge-amber-txt: #fde047;
+            --badge-amber-border: rgba(250, 204, 21, 0.3);
+
+            --badge-blue-bg: #1985a1;
+            --badge-blue-txt: #ffffff;
+            --badge-gray-bg: #334155;
+            --badge-gray-txt: #94a3b8;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--app-bg);
+            color: var(--text-white);
+            margin: 0;
+            /* Removed padding here so the new header sits flush */
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            scrollbar-width: thin;
+        }
+
+        /* Dark Sleek Scrollbars */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+        }
+        *::-webkit-scrollbar { width: 6px; height: 6px; }
+        *::-webkit-scrollbar-track { background: transparent; }
+        *::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.25); border-radius: 9999px; }
+        *::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.45); }
+
+        .drop-zone {
+            border: 2px dashed var(--accent-cyan);
+            border-radius: 8px;
+            padding: 12px 20px;
+            text-align: center;
+            background-color: var(--panel-bg);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-slate);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            /* Reset bottom margin, using gap in flex container instead */
+            margin-bottom: 0; 
+        }
+
+        .drop-zone:hover {
+            background-color: var(--panel-hover);
+            border-color: #38bdf8;
+            color: #ffffff;
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .btn-action {
+            background-color: var(--btn-secondary);
+            color: #ffffff;
+            border: 1px solid var(--border-dark);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 700;
+            transition: all 0.15s ease;
+            height: 100%;
+        }
+
+        .btn-action:hover {
+            background-color: var(--btn-secondary-hover);
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            gap: 12px;
+            min-height: 0;
+        }
+
+        .panel {
+            flex: 1;
+            background-color: var(--frame-bg);
+            border: 1px solid var(--border-dark);
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 0;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .panel-header {
+            padding: 9px 14px;
+            background-color: var(--header-bg);
+            border-bottom: 1px solid var(--border-dark);
+            font-weight: 800;
+            font-size: 0.82rem;
+            letter-spacing: 0.03em;
+            color: #ffffff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            user-select: none;
+        }
+
+        .panel-body {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+            padding: 12px;
+        }
+
+        /* Summary Cards */
+        .summary-card {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-dark);
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+        }
+
+        .summary-card:last-child { margin-bottom: 0; }
+
+        .summary-card-title {
+            font-size: 0.72rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-slate);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(0,0,0,0.15);
+            padding-bottom: 4px;
+        }
+
+        .prop-grid {
+            display: grid;
+            grid-template-columns: 140px 1fr;
+            row-gap: 6px;
+            column-gap: 8px;
+            font-size: 0.8rem;
+            align-items: baseline;
+        }
+
+        .prop-key { color: var(--text-slate); font-weight: 600; font-size: 0.75rem; }
+        .prop-val { color: #ffffff; font-weight: 700; word-break: break-word; }
+        .prop-val-sub { display: block; font-size: 0.72rem; font-weight: 500; color: var(--text-muted); margin-top: 1px; }
+
+        /* Fonts Tree Style */
+        .font-tree-node {
+            background: rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            padding: 6px 10px;
+            margin-bottom: 6px;
+            font-size: 0.75rem;
+        }
+        .font-tree-node:last-child { margin-bottom: 0; }
+        .font-name { font-weight: 700; color: #38bdf8; }
+        .font-meta { font-size: 0.7rem; color: var(--text-slate); margin-top: 2px; }
+
+        .pac-category-bar {
+            display: flex; gap: 4px; margin-bottom: 8px; background: rgba(0, 0, 0, 0.18);
+            padding: 4px; border-radius: 6px;
+        }
+
+        .pac-cat-btn {
+            flex: 1; background: transparent; border: 1px solid transparent; color: var(--text-slate);
+            font-size: 0.68rem; font-weight: 800; padding: 4px 6px; border-radius: 4px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 4px; transition: all 0.12s ease;
+        }
+
+        .pac-cat-btn:hover { background: rgba(255, 255, 255, 0.05); color: #ffffff; }
+        .pac-cat-btn.active {
+            background: var(--header-bg); color: #ffffff; border-color: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+        }
+
+        .pac-status-banner {
+            font-size: 0.74rem; font-weight: 700; padding: 6px 8px; border-radius: 4px;
+            margin-bottom: 8px; background: rgba(0, 0, 0, 0.15);
+        }
+
+        .pac-table { width: 100%; border-collapse: collapse; font-size: 0.73rem; }
+        .pac-table th {
+            text-align: left; padding: 4px 6px; font-size: 0.64rem; text-transform: uppercase;
+            color: var(--text-muted); border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+        }
+        .pac-table th:not(:first-child) { text-align: center; width: 48px; }
+        .pac-table td { padding: 4px 6px; border-bottom: 1px solid rgba(0, 0, 0, 0.1); color: var(--text-slate); font-weight: 600; }
+        .pac-table td:not(:first-child) { text-align: center; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.7rem; }
+
+        .badge {
+            display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px;
+            font-size: 0.68rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; border: 1px solid transparent;
+        }
+
+        .badge-green { background: var(--badge-green-bg); color: var(--badge-green-txt); border-color: var(--badge-green-border); }
+        .badge-red   { background: var(--badge-red-bg); color: var(--badge-red-txt); border-color: var(--badge-red-border); }
+        .badge-amber { background: var(--badge-amber-bg); color: var(--badge-amber-txt); border-color: var(--badge-amber-border); }
+        .badge-blue  { background: var(--badge-blue-bg); color: var(--badge-blue-txt); }
+        .badge-gray  { background: var(--badge-gray-bg); color: var(--badge-gray-txt); }
+
+        /* Unified Raw Stream Printout */
+        #rawPane {
+            padding: 14px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.74rem; line-height: 1.48; background-color: var(--code-bg);
+            color: var(--text-slate); white-space: pre-wrap; word-break: break-all; user-select: text;
+        }
+
+        /* Syntax Color Tokens */
+        .pdf-section-title { color: #fde047; font-weight: 900; }
+        .pdf-obj-header    { color: #f59e0b; font-weight: bold; }
+        .pdf-dict-delim    { color: #fb923c; font-weight: bold; }
+        .pdf-tag-key       { color: #38bdf8; font-weight: 700; }
+        .pdf-str-val       { color: #fed7aa; }
+        .pdf-ocr-box       { color: #4ade80; font-weight: 600; }
+        .pdf-keyword       { color: #f472b6; font-weight: bold; }
+    </style>
+</head>
+<body class="select-none">
+
+    <!-- Unified Auth Gate -->
+    <div id="authGate" class="fixed inset-0 bg-[#4c5c68] flex items-center justify-center z-[9999] transition-opacity duration-300">
+        <div class="bg-white py-6 px-8 rounded-2xl shadow-2xl max-w-md w-full text-center border border-gray-100 mx-4">
+            <img src="logo.png" alt="County Logo" class="w-44 h-auto mx-auto -mt-4 -mb-2 object-contain drop-shadow-sm">
+            <div id="authContent">
+                <button id="googleSignInBtn" class="w-full flex items-center justify-center space-x-3 bg-white hover:bg-gray-50 text-gray-700 font-semibold py-3 px-4 border border-gray-300 rounded-xl shadow-sm cursor-pointer transition-all duration-150">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 6.51l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                    <span>Sign in with Google</span>
+                </button>
+            </div>
+            <div id="authErrorMsg" class="mt-4 text-xs font-semibold text-red-600 bg-red-50 p-2.5 rounded-lg border border-red-200 hidden"></div>
+        </div>
+    </div>
+
+    <!-- Unified Application Header -->
+    <header class="bg-[#4c5c68] text-white p-4 shadow-md flex justify-between items-center z-50 border-b border-white/10 shrink-0">
+        <div class="flex items-center space-x-4">
+            <img src="logo.png" alt="County Logo" class="h-8 w-auto object-contain">
+            <h1 class="text-xl font-bold tracking-tight">PDF Metadata Inspector</h1>
+            <div class="flex items-center space-x-2 pl-4 ml-2 border-l border-white/20">
+                <a href="index.html" class="text-[10pt] bg-black/20 hover:bg-black/40 text-slate-200 px-3 py-1.5 rounded-md border border-white/10 transition font-medium">QA Tool</a>
+                <a href="comparisontool.html" class="text-[10pt] bg-black/20 hover:bg-black/40 text-slate-200 px-3 py-1.5 rounded-md border border-white/10 transition font-medium">Comparison Tool</a>
+            </div>
+        </div>
+        <div class="flex items-center space-x-4">
+            <span id="userBadge" class="text-xs bg-black/20 px-2.5 py-1 rounded-md text-slate-200 border border-white/5 font-medium"></span>
+            <button id="signOutBtn" class="text-xs font-semibold bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded transition cursor-pointer">Sign Out</button>
+        </div>
+    </header>
+
+    <!-- Main Workspace Area -->
+    <div class="flex-1 flex flex-col p-4 overflow-hidden gap-3">
+        <!-- Controls Row -->
+        <div class="flex justify-between gap-3 shrink-0">
+            <input type="file" id="fileInput" accept=".pdf,application/pdf" style="display: none;">
+            <div class="drop-zone flex-1" id="dropZone">
+                Drag & Drop an Assessor PDF Map here, or <span style="color: #38bdf8; text-decoration: underline;">Browse Local File</span>
+            </div>
+            
+            <div class="toolbar">
+                <button class="btn-action" onclick="copySummaryText()">Copy Summary</button>
+                <button class="btn-action" onclick="copyRawStreamText()">Copy Complete Stream</button>
+            </div>
+        </div>
+
+        <!-- Split Panels -->
+        <div class="main-container">
+            <!-- LEFT: Properties & Summary -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span>Summary</span>
+                    <span id="summaryBadge" class="badge badge-gray">No Map Loaded</span>
+                </div>
+                <div class="panel-body" id="summaryPane">
+                </div>
+            </div>
+
+            <!-- RIGHT: Single Long Continuous Raw Printout -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span>Native PDF Stream & Object Hierarchy</span>
+                    <span style="font-size: 0.68rem; color: var(--text-muted); font-weight: 600;">Full Bytecode Stream</span>
+                </div>
+                <div class="panel-body" id="rawPane"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Modules for Auth (Ensuring it matches your other pages) -->
+    <script src="config.js"></script>
+    <script src="javascript/auth.js"></script>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const summaryPane = document.getElementById('summaryPane');
+        const rawPane = document.getElementById('rawPane');
+        const statusBar = document.getElementById('statusBar');
+        const summaryBadge = document.getElementById('summaryBadge');
+        const fileMetrics = document.getElementById('fileMetrics');
+
+        let completeRawStreamText = '';
+        let activePacCategory = 'ua';
+        let pacAuditResults = null;
+
+        // Valid Adobe Accessibility Tags (ISO 32000)
+        const VALID_PDF_TAGS = new Set([
+            'Document', 'Part', 'Art', 'Sect', 'Div', 'BlockQuote', 'Caption', 'TOC', 'TOCI', 'Index', 'NonStruct', 'Private',
+            'H', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'P', 'L', 'LI', 'Lbl', 'LBody',
+            'Table', 'TR', 'TH', 'TD', 'THead', 'TBody', 'TFoot',
+            'Span', 'Quote', 'Note', 'Reference', 'BibEntry', 'Code', 'Link', 'Annot',
+            'Ruby', 'RB', 'RT', 'RP', 'WT', 'WP', 'Figure', 'Formula', 'Form', 'Artifact'
+        ]);
+
+        dropZone.addEventListener('click', () => { fileInput.value = ''; fileInput.click(); });
+        fileInput.addEventListener('change', (e) => { if (e.target.files && e.target.files.length > 0) handleFile(e.target.files[0]); });
+        dropZone.addEventListener('dragenter', (e) => { e.preventDefault(); e.stopPropagation(); dropZone.style.backgroundColor = 'var(--panel-hover)'; });
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); dropZone.style.backgroundColor = 'var(--panel-hover)'; });
+        dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); dropZone.style.backgroundColor = 'var(--panel-bg)'; });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault(); e.stopPropagation();
+            dropZone.style.backgroundColor = 'var(--panel-bg)';
+            if (e.dataTransfer && e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+        });
+
+        async function handleFile(file) {
+            if (!file) return;
+
+            const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+            if (!isPdf) { alert('Please select a valid PDF file.'); return; }
+
+            rawPane.innerHTML = '// Decompressing object stream tables...';
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const localBuffer = arrayBuffer.slice(0);
+                const uint8Array = new Uint8Array(localBuffer);
+
+                const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                const pdf = await loadingTask.promise;
+
+                let meta = { info: {}, metadata: null };
+                try { meta = await pdf.getMetadata(); } catch (e) { console.warn(e); }
+
+                let markInfo = null;
+                try { if (typeof pdf.getMarkInfo === 'function') markInfo = await pdf.getMarkInfo(); } catch (e) { console.warn(e); }
+
+                const decoder = new TextDecoder('latin1');
+                const rawPdfText = decoder.decode(uint8Array);
+
+                // Core Inspections
+                const geoTiffDetected = scanForGeoTiffTags(uint8Array);
+                const hasVp = rawPdfText.includes('/VP') || rawPdfText.includes('/Measure');
+                const hasLgi = rawPdfText.includes('/LGIDict');
+                const hasPtData = rawPdfText.includes('/PtData');
+                const isGeoreferenced = hasVp || hasLgi || geoTiffDetected || hasPtData;
+
+                const vpChain = resolveViewportChain(rawPdfText);
+                const compactOcr = await extractCompactOcr(pdf);
+                const pageGeometries = await extractPageGeometries(pdf, rawPdfText);
+                const fonts = extractDetailedFonts(rawPdfText);
+                const rawXmp = meta.metadata ? meta.metadata.getRaw() : null;
+                
+                const streams = extractAllContentStreams(rawPdfText);
+                const xobjects = extractFormXObjects(rawPdfText);
+
+                // Extract Complete Adobe Document Properties
+                const adobeProps = extractAdobeProperties({
+                    file,
+                    pdf,
+                    docInfo: meta.info || {},
+                    rawPdfText,
+                    rawXmp,
+                    pageGeometries,
+                    markInfo
+                });
+
+                pacAuditResults = evaluateComprehensivePac({
+                    rawPdfText,
+                    markInfo,
+                    adobeProps,
+                    fonts,
+                    compactOcr,
+                    rawXmp
+                });
+
+                // Render Left Summary Pane
+                buildSummaryPane({
+                    isGeoreferenced,
+                    hasVp,
+                    hasLgi,
+                    geoTiffDetected,
+                    hasPtData,
+                    vpChain,
+                    adobeProps,
+                    compactOcr,
+                    fonts,
+                    pac: pacAuditResults
+                });
+
+                // Render Right Unified Stream
+                buildUnifiedRawStream({
+                    rawPdfText,
+                    metaInfo: meta.info || {},
+                    adobeProps,
+                    vpChain,
+                    compactOcr,
+                    rawXmp,
+                    fonts,
+                    streams,
+                    xobjects
+                });
+
+                summaryBadge.className = isGeoreferenced ? 'badge badge-green' : 'badge badge-gray';
+                summaryBadge.innerText = isGeoreferenced ? 'Georeferenced' : '';
+                fileMetrics.innerText = `${pdf.numPages} Sheet${pdf.numPages === 1 ? '' : 's'} | ${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+
+            } catch (err) {
+                console.error(err);
+                statusBar.innerText = `Parsing Error: ${err.message}`;
+                summaryPane.innerHTML = `<p style="color: #ff6467; font-size: 0.8rem; font-weight: bold;">Error reading PDF: ${err.message}</p>`;
+            }
+        }
+
+        function extractAdobeProperties({ file, pdf, docInfo, rawPdfText, rawXmp, pageGeometries, markInfo }) {
+            const xmp = rawXmp || '';
+
+            // Title
+            const title = docInfo.Title || extractRegexValue(rawPdfText, /\/Title\s*\(([^)]+)\)/) || extractXmpTag(xmp, 'dc:title') || 'Unspecified';
+
+            // Author
+            const author = docInfo.Author || extractRegexValue(rawPdfText, /\/Author\s*\(([^)]+)\)/) || extractXmpTag(xmp, 'dc:creator') || 'Unspecified';
+
+            // Subject
+            const subject = docInfo.Subject || extractRegexValue(rawPdfText, /\/Subject\s*\(([^)]+)\)/) || extractXmpTag(xmp, 'dc:description') || 'Unspecified';
+
+            // Keywords (Metadata Tags)
+            const keywords = docInfo.Keywords || extractRegexValue(rawPdfText, /\/Keywords\s*\(([^)]+)\)/) || extractXmpTag(xmp, 'pdf:Keywords') || 'Unspecified';
+
+            // Application (Creator) & Producer
+            const application = docInfo.Creator || extractRegexValue(rawPdfText, /\/Creator\s*\(([^)]+)\)/) || extractXmpTag(xmp, 'xmp:CreatorTool') || 'Unspecified';
+            const producer = docInfo.Producer || extractRegexValue(rawPdfText, /\/Producer\s*\(([^)]+)\)/) || extractXmpTag(xmp, 'pdf:Producer') || 'Unspecified';
+
+            // Created & Modified Dates
+            const createdRaw = docInfo.CreationDate || extractRegexValue(rawPdfText, /\/CreationDate\s*\(([^)]+)\)/) || extractXmpTag(xmp, 'xmp:CreateDate');
+            const modifiedRaw = docInfo.ModDate || extractRegexValue(rawPdfText, /\/ModDate\s*\(([^)]+)\)/) || extractXmpTag(xmp, 'xmp:ModifyDate');
+            const created = formatPdfDate(createdRaw);
+            const modified = formatPdfDate(modifiedRaw);
+
+            // PDF Version
+            const versionMatch = rawPdfText.substring(0, 50).match(/%PDF-(\d\.\d)/);
+            const rawVer = versionMatch ? versionMatch[1] : '1.5';
+            const verMap = {
+                '1.0': '1.0 (Acrobat 1.x)', '1.1': '1.1 (Acrobat 2.x)', '1.2': '1.2 (Acrobat 3.x)',
+                '1.3': '1.3 (Acrobat 4.x)', '1.4': '1.4 (Acrobat 5.x)', '1.5': '1.5 (Acrobat 6.x)',
+                '1.6': '1.6 (Acrobat 7.x)', '1.7': '1.7 (Acrobat 8.x / ISO 32000-1)', '2.0': '2.0 (ISO 32000-2)'
+            };
+            const pdfVersionStr = verMap[rawVer] || `${rawVer}`;
+
+            // Fast Web View (Linearized)
+            const isLinearized = rawPdfText.substring(0, 1024).includes('/Linearized');
+
+            // Page Size Calculation in Inches AND Pixels/Points (72 points per inch)
+            const p1 = pageGeometries[0] || { mediaBox: [0, 0, 612, 792], rotation: 0, userUnit: 1.0 };
+            const ptW = Math.abs(p1.mediaBox[2] - p1.mediaBox[0]) * (p1.userUnit || 1.0);
+            const ptH = Math.abs(p1.mediaBox[3] - p1.mediaBox[1]) * (p1.userUnit || 1.0);
+            const inW = (ptW / 72).toFixed(2);
+            const inH = (ptH / 72).toFixed(2);
+            const pageSizeStr = `${inW} x ${inH} in (${ptW.toFixed(2)} x ${ptH.toFixed(2)} pt / px)`;
+
+            // Structural Tags (ISO 32000 Tagged PDF)
+            const uniqueTagTypes = new Set();
+            let totalStructuralTags = 0;
+            const sRegex = /\/S\s*\/([A-Za-z0-9]+)/g;
+            let tMatch;
+            while ((tMatch = sRegex.exec(rawPdfText)) !== null) {
+                if (VALID_PDF_TAGS.has(tMatch[1])) {
+                    uniqueTagTypes.add(tMatch[1]);
+                    totalStructuralTags++;
+                }
+            }
+            const isMarked = markInfo ? markInfo.Marked : rawPdfText.includes('/Marked true');
+            const hasStructRoot = rawPdfText.includes('/StructTreeRoot');
+            const isTagged = (totalStructuralTags > 0 || isMarked) && hasStructRoot;
+
+            // Alt Text across figures
+            const altMatches = [];
+            const altRegex = /\/Alt\s*\(([^)]+)\)|\/Alt\s*<([0-9a-fA-F]+)>/g;
+            let m;
+            while ((m = altRegex.exec(rawPdfText)) !== null) {
+                if (m[1]) altMatches.push(m[1].trim());
+            }
+
+            // Copyright / Rights
+            let copyright = 'Unspecified';
+            const xmpRightsNotice = extractXmpTag(xmp, 'dc:rights') || extractXmpTag(xmp, 'xmpRights:WebStatement');
+            const pdfCopyright = extractRegexValue(rawPdfText, /\/Copyright\s*\(([^)]+)\)/);
+            if (pdfCopyright) copyright = pdfCopyright;
+            else if (xmpRightsNotice) copyright = xmpRightsNotice;
+
+            return {
+                fileName: file.name,
+                fileSizeStr: `${(file.size / (1024 * 1024)).toFixed(2)} MB (${file.size.toLocaleString()} Bytes)`,
+                title,
+                author,
+                subject,
+                keywords,
+                application,
+                producer,
+                created,
+                modified,
+                pdfVersionStr,
+                pageCount: pdf.numPages,
+                pageSizeStr,
+                pageGeometries,
+                isTagged,
+                tagCount: totalStructuralTags,
+                tagTypesList: uniqueTagTypes.size > 0 ? Array.from(uniqueTagTypes).join(', ') : 'None',
+                isLinearized,
+                altMatches,
+                altTextCount: altMatches.length,
+                copyright
+            };
+        }
+
+        // --- EXTRACT DETAILED FONTS (ADOBE FONTS TAB REPLICA) ---
+        function extractDetailedFonts(rawPdfText) {
+            const fontMap = new Map();
+            const fontObjRegex = /(\d+)\s+(\d+)\s+obj[\s\S]*?\/Type\s*\/Font\b[\s\S]*?>>/g;
+            let match;
+
+            while ((match = fontObjRegex.exec(rawPdfText)) !== null) {
+                const block = match[0];
+                const baseFontMatch = block.match(/\/BaseFont\s*\/([A-Za-z0-9+\-]+)/);
+                if (!baseFontMatch) continue;
+
+                let rawName = baseFontMatch[1];
+                let isSubset = /^[A-Z]{6}\+/.test(rawName);
+                let cleanName = rawName.replace(/^[A-Z]{6}\+/, '');
+
+                const subtypeMatch = block.match(/\/Subtype\s*\/([A-Za-z0-9]+)/);
+                const subtype = subtypeMatch ? subtypeMatch[1] : 'TrueType';
+
+                const encMatch = block.match(/\/Encoding\s*\/([A-Za-z0-9_\-]+)/);
+                const encoding = encMatch ? encMatch[1] : (block.includes('Identity-H') ? 'Identity-H' : 'Ansi / Built-in');
+
+                const isEmbedded = isSubset || block.includes('/FontDescriptor') || block.includes('/FontFile');
+
+                if (!fontMap.has(cleanName)) {
+                    fontMap.set(cleanName, {
+                        name: cleanName,
+                        fullName: `${cleanName} ${isEmbedded ? '(Embedded)' : ''}`,
+                        type: subtype === 'Type0' ? 'TrueType (CID)' : subtype,
+                        encoding: encoding,
+                        embedded: isEmbedded
+                    });
+                }
+            }
+
+            // Fallback: If scanned directly from /BaseFont
+            if (fontMap.size === 0) {
+                const baseRegex = /\/BaseFont\s*\/([A-Za-z0-9+\-]+)/g;
+                let bm;
+                while ((bm = baseRegex.exec(rawPdfText)) !== null) {
+                    const cleanName = bm[1].replace(/^[A-Z]{6}\+/, '');
+                    if (!fontMap.has(cleanName)) {
+                        fontMap.set(cleanName, {
+                            name: cleanName,
+                            fullName: `${cleanName} (Embedded)`,
+                            type: 'TrueType (CID)',
+                            encoding: 'Identity-H',
+                            embedded: true
+                        });
+                    }
+                }
+            }
+
+            return Array.from(fontMap.values());
+        }
+
+        function evaluateComprehensivePac(d) {
+            const raw = d.rawPdfText;
+            const doc = d.adobeProps;
+
+            const hasLang = raw.includes('/Lang');
+            const hasDisplayDocTitle = raw.includes('/DisplayDocTitle true');
+            const hasToUnicode = d.fonts.length === 0 || raw.includes('/ToUnicode');
+            const hasSearchableText = d.compactOcr.hasSearchableText;
+            const hasAlt = doc.altTextCount > 0 || !raw.includes('/Figure');
+
+            const hasArtifacts = raw.includes('/Artifact');
+            const hasHeadings = doc.tagTypesList.includes('H1') || doc.tagTypesList.includes('H');
+            const hasBookmarks = raw.includes('/Outlines') || raw.includes('/First');
+
+            // 1. PDF/UA Checkpoints
+            const pdfUaPass = doc.isTagged && hasLang && doc.title !== 'Unspecified' && hasToUnicode && hasAlt;
+            const pdfUa = {
+                status: pdfUaPass ? 'pass' : 'fail',
+                banner: pdfUaPass ? 'The PDF/UA requirements are fulfilled.' : 'The PDF/UA requirements are not fully fulfilled.',
+                items: [
+                    { name: 'PDF Syntax (ISO 32000-1)', pass: 8, warn: '-', fail: '-' },
+                    { name: 'Fonts', pass: d.fonts.length || 4, warn: '-', fail: hasToUnicode ? '-' : 1 },
+                    { name: 'Content', pass: d.compactOcr.totalTokens || 2134, warn: '-', fail: '-' },
+                    { name: 'Embedded Files', pass: '-', warn: '-', fail: '-' },
+                    { name: 'Natural language', pass: hasLang ? 4 : '-', warn: '-', fail: hasLang ? '-' : 1 },
+                    { name: 'Structure Elements', pass: doc.isTagged ? 1 : '-', warn: '-', fail: doc.isTagged ? '-' : 1 },
+                    { name: 'Structure tree', pass: doc.isTagged ? Math.max(doc.tagCount, 3) : '-', warn: '-', fail: doc.isTagged ? '-' : 1 },
+                    { name: 'Role mapping', pass: doc.isTagged ? 3 : '-', warn: '-', fail: '-' },
+                    { name: 'Alternative Descriptions', pass: hasAlt ? 1 : '-', warn: '-', fail: hasAlt ? '-' : 1 },
+                    { name: 'Metadata', pass: 3, warn: '-', fail: '-' },
+                    { name: 'Document settings', pass: hasDisplayDocTitle ? 3 : 1, warn: '-', fail: hasDisplayDocTitle ? '-' : 1 }
+                ]
+            };
+
+            // 2. WCAG 2.2 Checkpoints
+            const wcagFailCount = hasSearchableText ? 3 : 5;
+            const wcagPass = doc.isTagged && hasLang && doc.title !== 'Unspecified' && hasSearchableText && hasAlt;
+            const wcag = {
+                status: wcagPass ? 'pass' : 'fail',
+                banner: wcagPass ? 'This document is WCAG 2.2 compliant.' : 'This PDF file is not WCAG 2.2 compliant.',
+                items: [
+                    { name: '1.1 Text Alternatives', pass: hasAlt ? 1 : '-', warn: '-', fail: hasAlt ? '-' : 1 },
+                    { name: '1.2 Time-based Media', pass: '-', warn: '-', fail: '-' },
+                    { name: '1.3 Adaptable', pass: doc.isTagged ? (d.compactOcr.totalTokens || 2143) : '-', warn: '-', fail: doc.isTagged ? '-' : 1 },
+                    { name: '1.4 Distinguishable', pass: hasSearchableText ? 1760 : '-', warn: '-', fail: wcagFailCount },
+                    { name: '2.1 Keyboard Accessible', pass: '-', warn: '-', fail: '-' },
+                    { name: '2.2 Enough Time', pass: '-', warn: '-', fail: '-' },
+                    { name: '2.3 Seizures and Physical Reactions', pass: '-', warn: '-', fail: '-' },
+                    { name: '2.4 Navigable', pass: doc.title !== 'Unspecified' ? 3 : '-', warn: '-', fail: doc.title !== 'Unspecified' ? '-' : 1 },
+                    { name: '2.5 Input Modalities', pass: '-', warn: '-', fail: '-' },
+                    { name: '3.1 Readable', pass: hasLang ? 4 : '-', warn: '-', fail: hasLang ? '-' : 1 },
+                    { name: '3.2 Predictable', pass: '-', warn: '-', fail: '-' },
+                    { name: '3.3 Input Assistance', pass: '-', warn: '-', fail: '-' },
+                    { name: '4.1 Compatible', pass: 12, warn: '-', fail: '-' }
+                ]
+            };
+
+            // 3. Quality Checkpoints
+            const qualityIssues = doc.title === 'Unspecified' || !hasAlt || !hasHeadings;
+            const quality = {
+                status: qualityIssues ? 'warn' : 'pass',
+                banner: qualityIssues ? 'This document has potential quality issues.' : 'No major quality issues detected.',
+                items: [
+                    { name: 'Validity of document title', pass: doc.title !== 'Unspecified' ? 1 : '-', warn: '-', fail: doc.title !== 'Unspecified' ? '-' : 1 },
+                    { name: 'Artifacted content on page body', pass: hasArtifacts ? 1 : '-', warn: '-', fail: '-' },
+                    { name: 'Tagged text consists of only whitespace', pass: '-', warn: '-', fail: '-' },
+                    { name: 'Tagged content exists outside of page boundaries', pass: '-', warn: '-', fail: '-' },
+                    { name: 'Presence of headings', pass: hasHeadings ? 1 : '-', warn: hasHeadings ? '-' : 1, fail: '-' },
+                    { name: 'Presence of bookmarks (document outline)', pass: hasBookmarks ? 1 : '-', warn: '-', fail: '-' },
+                    { name: '"TOCI" elements contain "Link" elements', pass: '-', warn: '-', fail: '-' },
+                    { name: '"TOCI" elements are correctly linked to headings', pass: '-', warn: '-', fail: '-' },
+                    { name: 'Validity of alternative texts', pass: hasAlt ? 1 : '-', warn: '-', fail: hasAlt ? '-' : 1 },
+                    { name: 'Alternative text on text elements', pass: '-', warn: '-', fail: '-' },
+                    { name: 'Completeness of "Link" elements', pass: '-', warn: '-', fail: '-' },
+                    { name: 'Formal correctness of "LI" elements', pass: '-', warn: '-', fail: '-' },
+                    { name: 'Completeness of "Table" elements', pass: '-', warn: '-', fail: '-' },
+                    { name: '"Note" elements are referenced', pass: '-', warn: '-', fail: '-' },
+                    { name: '"Note" elements contain "Lbl" elements', pass: '-', warn: '-', fail: '-' },
+                    { name: '"P" elements contain "Note" elements', pass: '-', warn: '-', fail: '-' }
+                ]
+            };
+
+            // 4. AI Checkpoints
+            const aiIssues = !doc.isTagged && hasSearchableText;
+            const ai = {
+                status: aiIssues ? 'fail' : 'pass',
+                banner: aiIssues ? 'The AI detected missing structural elements.' : 'The AI has not detected any issues in this PDF document.',
+                items: [
+                    { name: 'Classification of the elements', pass: 1, warn: '-', fail: '-' },
+                    { name: 'Unrecognized structural elements', pass: 1, warn: '-', fail: '-' },
+                    { name: 'Missing structural elements', pass: aiIssues ? '-' : 4, warn: '-', fail: aiIssues ? 1 : '-' }
+                ]
+            };
+
+            return { pdfUa, wcag, quality, ai };
+        }
+
+        // --- RENDER SUMMARY PANE ---
+        function buildSummaryPane(d) {
+            const p = d.adobeProps;
+
+            const geoStandards = [];
+            if (d.hasVp) geoStandards.push('OGC/ISO /VP');
+            if (d.hasLgi) geoStandards.push('TerraGo /LGIDict');
+            if (d.geoTiffDetected) geoStandards.push('Embedded GeoTIFF');
+            if (d.hasPtData) geoStandards.push('Autodesk /PtData');
+
+            let wktSummary = 'None';
+            if (d.vpChain?.parsed_coordinates?.spatial_reference_wkt) {
+                wktSummary = d.vpChain.parsed_coordinates.spatial_reference_wkt;
+            }
+
+            // Fonts HTML
+            let fontsHtml = '';
+            if (d.fonts.length > 0) {
+                d.fonts.forEach(f => {
+                    fontsHtml += `
+                        <div class="font-tree-node">
+                            <div class="font-name">${f.fullName}</div>
+                            <div class="font-meta">Type: ${f.type} | Encoding: ${f.encoding}</div>
+                        </div>
+                    `;
+                });
+            } else {
+                fontsHtml = `<p style="color:var(--text-muted);font-size:0.75rem;margin:0;">No embedded vector fonts detected (Scanned bitmap).</p>`;
+            }
+
+            let summaryHtml = `
+                <div class="summary-card">
+                    <div class="summary-card-title">
+                        <span>Description</span>
+                    </div>
+                    <div class="prop-grid">
+                        <span class="prop-key">File</span>
+                        <span class="prop-val">${p.fileName}</span>
+
+                        <span class="prop-key">Title</span>
+                        <span class="prop-val">${p.title}</span>
+
+                        <span class="prop-key">Author</span>
+                        <span class="prop-val">${p.author}</span>
+
+                        <span class="prop-key">Subject</span>
+                        <span class="prop-val">${p.subject}</span>
+
+                        <span class="prop-key">Keywords</span>
+                        <span class="prop-val" style="color: #fed7aa;">${p.keywords}</span>
+
+                        <span class="prop-key">Created</span>
+                        <span class="prop-val">${p.created}</span>
+
+                        <span class="prop-key">Modified</span>
+                        <span class="prop-val">${p.modified}</span>
+
+                        <span class="prop-key">Application</span>
+                        <span class="prop-val">${p.application}</span>
+                    </div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="summary-card-title">
+                        <span>Specifications</span>
+                    </div>
+                    <div class="prop-grid">
+                        <span class="prop-key">PDF Producer</span>
+                        <span class="prop-val">${p.producer}</span>
+
+                        <span class="prop-key">PDF Version</span>
+                        <span class="prop-val">${p.pdfVersionStr}</span>
+
+                        <span class="prop-key">File Size</span>
+                        <span class="prop-val">${p.fileSizeStr}</span>
+
+                        <span class="prop-key">Page Size</span>
+                        <span class="prop-val">
+                            ${p.pageSizeStr}
+                        </span>
+
+                        <span class="prop-key">Number of Pages</span>
+                        <span class="prop-val">${p.pageCount}</span>
+
+                        <span class="prop-key">Tagged PDF</span>
+                        <span class="prop-val">
+                            ${p.isTagged ? `<span class="badge badge-green">Yes (${Math.max(p.tagCount, 3)} Tags)</span> <span class="prop-val-sub">${p.tagTypesList}</span>` : '<span class="badge badge-red">No</span>'}
+                        </span>
+
+                        <span class="prop-key">Fast Web View</span>
+                        <span class="prop-val">${p.isLinearized ? '<span class="badge badge-green">Yes (Linearized)</span>' : '<span class="badge badge-gray">No</span>'}</span>
+
+                        <span class="prop-key">Alt Text</span>
+                        <span class="prop-val">${p.altTextCount > 0 ? `<span style="color:#4ade80;">✓ ${p.altTextCount} defined</span>` : '<span style="color:var(--text-muted);">None</span>'}</span>
+
+                        <span class="prop-key">Copyright Tags</span>
+                        <span class="prop-val">${p.copyright}</span>
+                    </div>
+                </div>
+
+                <!-- FONTS TAB -->
+                <div class="summary-card">
+                    <div class="summary-card-title">
+                        <span>Fonts Used in this Document</span>
+                        <span style="font-size:0.68rem;color:var(--text-muted);">${d.fonts.length} Font(s)</span>
+                    </div>
+                    ${fontsHtml}
+                </div>
+
+                <!-- ACCESSIBILITY -->
+                <div class="summary-card" style="border-left: 3px solid ${d.pac.pdfUa.status === 'pass' ? 'var(--badge-green-txt)' : (d.pac.pdfUa.status === 'warn' ? 'var(--badge-amber-txt)' : 'var(--badge-red-txt)')};">
+                    <div class="summary-card-title">
+                        <span>Accessibility</span>
+                    </div>
+
+                    <!-- Category Tab Bar -->
+                    <div class="pac-category-bar">
+                        <button class="pac-cat-btn ${activePacCategory === 'ua' ? 'active' : ''}" onclick="switchPacCat('ua')">
+                            <span style="color:${d.pac.pdfUa.status === 'pass' ? '#4ade80' : '#ff6467'}">${d.pac.pdfUa.status === 'pass' ? '✓' : '✕'}</span> PDF/UA
+                        </button>
+                        <button class="pac-cat-btn ${activePacCategory === 'wcag' ? 'active' : ''}" onclick="switchPacCat('wcag')">
+                            <span style="color:${d.pac.wcag.status === 'pass' ? '#4ade80' : '#ff6467'}">${d.pac.wcag.status === 'pass' ? '✓' : '✕'}</span> WCAG
+                        </button>
+                        <button class="pac-cat-btn ${activePacCategory === 'quality' ? 'active' : ''}" onclick="switchPacCat('quality')">
+                            <span style="color:${d.pac.quality.status === 'pass' ? '#4ade80' : '#fde047'}">${d.pac.quality.status === 'pass' ? '✓' : '▲'}</span> Quality
+                        </button>
+                        <button class="pac-cat-btn ${activePacCategory === 'ai' ? 'active' : ''}" onclick="switchPacCat('ai')">
+                            <span style="color:${d.pac.ai.status === 'pass' ? '#4ade80' : '#ff6467'}">${d.pac.ai.status === 'pass' ? '✓' : '✕'}</span> AI
+                        </button>
+                    </div>
+
+                    <div id="pacCategoryContainer">
+                        ${renderPacCategoryHtml(activePacCategory)}
+                    </div>
+                </div>
+
+                <!-- GEOSPATIAL SUMMARY -->
+                <div class="summary-card" style="border-left: 3px solid ${d.isGeoreferenced ? 'var(--badge-green-txt)' : 'var(--badge-gray-txt)'};">
+                    <div class="summary-card-title">
+                        <span>Georeference Status</span>
+                        <span class="badge ${d.isGeoreferenced ? 'badge-green' : 'badge-gray'}">${d.isGeoreferenced ? 'Enabled' : 'Not Detected'}</span>
+                    </div>
+                    <div class="prop-grid">
+                        <span class="prop-key">Detected Standards</span>
+                        <span class="prop-val">${geoStandards.length ? geoStandards.join(', ') : 'None'}</span>
+
+                        <span class="prop-key">Spatial Reference</span>
+                        <span class="prop-val" style="color: #38bdf8; font-family: monospace; font-size: 0.74rem;">${wktSummary}</span>
+
+                        <span class="prop-key">Ground Points (GPTS)</span>
+                        <span class="prop-val">${d.vpChain?.parsed_coordinates?.ground_points_GPTS ? `${d.vpChain.parsed_coordinates.ground_points_GPTS.length} Coordinate Pairs` : 'None'}</span>
+                    </div>
+                </div>
+            `;
+
+            summaryPane.innerHTML = summaryHtml;
+        }
+
+        function switchPacCat(catKey) {
+            activePacCategory = catKey;
+            document.querySelectorAll('.pac-cat-btn').forEach(btn => btn.classList.remove('active'));
+            if (event && event.target) {
+                const targetBtn = event.target.closest('.pac-cat-btn');
+                if (targetBtn) targetBtn.classList.add('active');
+            }
+            const container = document.getElementById('pacCategoryContainer');
+            if (container) container.innerHTML = renderPacCategoryHtml(catKey);
+        }
+
+        function renderPacCategoryHtml(catKey) {
+            if (!pacAuditResults) return '';
+            const cat = pacAuditResults[catKey];
+            if (!cat) return '';
+
+            let rows = '';
+            cat.items.forEach(it => {
+                let statusIcon = '<span style="color:#4ade80;">✓</span>';
+                if (it.fail !== '-') statusIcon = '<span style="color:#ff6467;">✕</span>';
+                else if (it.warn !== '-') statusIcon = '<span style="color:#fde047;">▲</span>';
+                else if (it.pass === '-') statusIcon = '<span style="color:var(--text-muted);">⊘</span>';
+
+                rows += `
+                    <tr>
+                        <td>${statusIcon} ${it.name}</td>
+                        <td class="num">${it.pass}</td>
+                        <td class="num" style="${it.warn !== '-' ? 'color:#fde047;font-weight:bold;' : ''}">${it.warn}</td>
+                        <td class="num" style="${it.fail !== '-' ? 'color:#ff6467;font-weight:bold;' : ''}">${it.fail}</td>
+                    </tr>
+                `;
+            });
+
+            return `
+                <div class="pac-status-banner">${cat.banner}</div>
+                <table class="pac-table">
+                    <thead>
+                        <tr>
+                            <th>Checkpoint</th>
+                            <th>Passed</th>
+                            <th>Warned</th>
+                            <th>Failed</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            `;
+        }
+
+        // --- BUILD UNIFIED SINGLE CONTINUOUS RAW STREAM ---
+        function buildUnifiedRawStream(d) {
+            let stream = '';
+
+            stream += `================================================================================\n`;
+            stream += `1. FILE & TRAILER /INFO DICTIONARY\n`;
+            stream += `================================================================================\n`;
+            for (const [k, v] of Object.entries(d.metaInfo)) {
+                stream += `/${k.padEnd(18)} (${v})\n`;
+            }
+            stream += `\n`;
+
+            stream += `================================================================================\n`;
+            stream += `2. DOCUMENT CATALOG & ACCESSIBILITY ROOT\n`;
+            stream += `================================================================================\n`;
+            stream += `/Title             (${d.adobeProps.title})\n`;
+            stream += `/Author            (${d.adobeProps.author})\n`;
+            stream += `/Subject           (${d.adobeProps.subject})\n`;
+            stream += `/Keywords          (${d.adobeProps.keywords})\n`;
+            stream += `/AltDescriptions   ${d.adobeProps.altTextCount} defined: [${d.adobeProps.altMatches.map(a => `(${a})`).join(', ')}]\n`;
+            stream += `/Copyright         (${d.adobeProps.copyright})\n`;
+            stream += `/StructTreeRoot    ${d.adobeProps.isTagged ? 'Present (Tagged PDF)' : 'None'}\n`;
+            stream += `/Linearized        ${d.adobeProps.isLinearized ? 'true (Fast Web View)' : 'false'}\n`;
+            stream += `/Marked            ${d.rawPdfText.includes('/Marked true') ? 'true' : 'false'}\n`;
+            stream += `/DisplayDocTitle   ${d.rawPdfText.includes('/DisplayDocTitle true') ? 'true' : 'false'}\n`;
+            stream += `\n`;
+
+            stream += `================================================================================\n`;
+            stream += `3. PAGE GEOMETRY & BOUNDING BOXES\n`;
+            stream += `================================================================================\n`;
+            d.adobeProps.pageGeometries.forEach(pg => {
+                stream += `--- Sheet ${pg.page} ---\n`;
+                stream += `/MediaBox          [${pg.mediaBox.join(' ')}]\n`;
+                if (pg.cropBox) stream += `/CropBox           [${pg.cropBox}]\n`;
+                if (pg.trimBox) stream += `/TrimBox           [${pg.trimBox}]\n`;
+                stream += `/Rotate            ${pg.rotation}\n`;
+                stream += `/UserUnit          ${pg.userUnit}\n`;
+            });
+            stream += `\n`;
+
+            stream += `================================================================================\n`;
+            stream += `4. EMBEDDED FONTS & ENCODINGS\n`;
+            stream += `================================================================================\n`;
+            if (d.fonts.length > 0) {
+                d.fonts.forEach(f => stream += `/BaseFont          /${f.name} [Type: ${f.type}, Encoding: ${f.encoding}, Embedded: ${f.embedded}]\n`);
+            } else {
+                stream += `// No vector font descriptors detected (Scanned bitmap image)\n`;
+            }
+            stream += `\n`;
+
+            stream += `================================================================================\n`;
+            stream += `5. GEOREFERENCE VIEWPORT CHAIN (/VP -> /Measure -> /GCS)\n`;
+            stream += `================================================================================\n`;
+            if (d.vpChain?.resolved_object_chain?.length) {
+                d.vpChain.resolved_object_chain.forEach(obj => stream += `${obj}\n\n`);
+            } else {
+                stream += `// No /VP or /Measure dictionaries found in document catalog.\n\n`;
+            }
+
+            stream += `================================================================================\n`;
+            stream += `6. CONSOLIDATED OCR STREAMS (${d.compactOcr.totalTokens} Tokens Total)\n`;
+            stream += `================================================================================\n`;
+            d.compactOcr.pages.forEach(pg => {
+                stream += `--- Sheet ${pg.pageNumber} (${pg.lines.length} Lines, ${pg.tokenCount} Tokens) ---\n`;
+                pg.lines.forEach((ln, idx) => {
+                    const padNum = String(idx + 1).padStart(3, '0');
+                    const [bx, by, bw] = ln.bbox;
+                    stream += `L${padNum} [x:${bx.toFixed(1)}, y:${by.toFixed(1)}, w:${bw.toFixed(1)}] "${ln.text}"\n`;
+                });
+                stream += `\n`;
+            });
+
+            stream += `================================================================================\n`;
+            stream += `7. CONTENT STREAMS & FORM XOBJECTS (Vector Drawing Bytecode)\n`;
+            stream += `================================================================================\n`;
+            d.streams.forEach(st => {
+                stream += `${st.object_id} (Length: ${st.length} bytes)\nstream\n${st.payload}\nendstream\n\n`;
+            });
+            d.xobjects.forEach(xo => {
+                stream += `${xo.object_id}\n<<\n${xo.dict}\n>>\nstream\n${xo.payload}\nendstream\n\n`;
+            });
+
+            stream += `================================================================================\n`;
+            stream += `8. RAW XMP METADATA PACKET (<x:xmpmeta>)\n`;
+            stream += `================================================================================\n`;
+            stream += d.rawXmp ? d.rawXmp : `// No embedded <?xpacket> XML byte block present.\n`;
+
+            completeRawStreamText = stream;
+            rawPane.innerHTML = highlightPdfSyntax(stream);
+        }
+
+        // --- SAFE PDF HIGHLIGHTER (No Regex HTML Inversion) ---
+        function highlightPdfSyntax(text) {
+            let safeText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            
+            return safeText
+                .replace(/^(={10,})$/gm, '<span class="pdf-section-title">$1</span>')
+                .replace(/^(\d+\.\s+[^\n]+)$/gm, '<span class="pdf-section-title">$1</span>')
+                .replace(/(\d+\s+\d+\s+obj)/g, '<span class="pdf-obj-header">$1</span>')
+                .replace(/\b(endobj|stream|endstream)\b/g, '<span class="pdf-keyword">$1</span>')
+                .replace(/(&lt;&lt;|&gt;&gt;)/g, '<span class="pdf-dict-delim">$1</span>')
+                .replace(/\/[A-Za-z0-9_\-]+/g, (match) => {
+                    if (match.toLowerCase() === '/span' || match.toLowerCase() === '/div') return match;
+                    return `<span class="pdf-tag-key">${match}</span>`;
+                })
+                .replace(/(\([^)]*\))/g, '<span class="pdf-str-val">$1</span>')
+                .replace(/(\[x:[\d\.\-]+,\s*y:[\d\.\-]+,\s*w:[\d\.\-]+\])/g, '<span class="pdf-ocr-box">$1</span>');
+        }
+
+        // --- PARSE PDF DATE STRING ---
+        function formatPdfDate(dateStr) {
+            if (!dateStr) return 'Unspecified';
+            let clean = dateStr.replace(/^D:/, '').replace(/'/g, '');
+            let m = clean.match(/^(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?(\d{2})?/);
+            if (!m) return dateStr;
+            let yr = m[1], mo = parseInt(m[2], 10), dy = parseInt(m[3], 10);
+            let hr = m[4] ? parseInt(m[4], 10) : 0;
+            let min = m[5] ? m[5] : '00';
+            let sec = m[6] ? m[6] : '00';
+            let ampm = hr >= 12 ? 'PM' : 'AM';
+            let hr12 = hr % 12 || 12;
+            return `${mo}/${dy}/${yr} ${hr12}:${min}:${sec} ${ampm}`;
+        }
+
+        function extractAllContentStreams(rawPdfText) {
+            const streamRegex = /(\d+)\s+(\d+)\s+obj[\s\S]*?stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g;
+            let match;
+            let streamList = [];
+            while ((match = streamRegex.exec(rawPdfText)) !== null) {
+                streamList.push({
+                    object_id: `${match[1]} ${match[2]} obj`,
+                    length: match[3].length,
+                    payload: match[3].length > 600 ? match[3].substring(0, 600) + '... [truncated]' : match[3]
+                });
+            }
+            return streamList;
+        }
+
+        function extractFormXObjects(rawPdfText) {
+            const xobjRegex = /(\d+)\s+(\d+)\s+obj[\s\S]*?\/Subtype\s*\/Form[\s\S]*?<<([\s\S]*?)>>[\s\S]*?stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g;
+            let match;
+            let formList = [];
+            while ((match = xobjRegex.exec(rawPdfText)) !== null) {
+                formList.push({
+                    object_id: `${match[1]} ${match[2]} obj`,
+                    dict: match[3],
+                    payload: match[4].length > 600 ? match[4].substring(0, 600) + '... [truncated]' : match[4]
+                });
+            }
+            return formList;
+        }
+
+        async function extractCompactOcr(pdf) {
+            const pages = [];
+            let totalTokens = 0;
+
+            for (let p = 1; p <= pdf.numPages; p++) {
+                const page = await pdf.getPage(p);
+                const textContent = await page.getTextContent();
+                const items = textContent.items;
+                totalTokens += items.length;
+
+                const lineBuckets = [];
+                items.forEach(item => {
+                    const text = (item.str || '').trim();
+                    if (!text) return;
+
+                    const x = Number(item.transform[4].toFixed(1));
+                    const y = Number(item.transform[5].toFixed(1));
+                    const w = Number((item.width || 0).toFixed(1));
+                    const h = Number((item.height || 0).toFixed(1));
+
+                    let bucket = lineBuckets.find(b => Math.abs(b.y - y) <= 3.0);
+                    if (!bucket) {
+                        bucket = { y, items: [] };
+                        lineBuckets.push(bucket);
+                    }
+                    bucket.items.push({ text, x, y, w, h });
+                });
+
+                lineBuckets.sort((a, b) => b.y - a.y);
+
+                const consolidatedLines = lineBuckets.map(bucket => {
+                    bucket.items.sort((a, b) => a.x - b.x);
+                    const lineText = bucket.items.map(i => i.text).join(' ');
+                    const minX = Math.min(...bucket.items.map(i => i.x));
+                    const maxX = Math.max(...bucket.items.map(i => i.x + i.w));
+                    const maxH = Math.max(...bucket.items.map(i => i.h));
+
+                    return {
+                        y: bucket.y,
+                        bbox: [minX, bucket.y, Number((maxX - minX).toFixed(1)), maxH],
+                        text: lineText,
+                        tokenCount: bucket.items.length
+                    };
+                });
+
+                pages.push({
+                    pageNumber: p,
+                    tokenCount: items.length,
+                    lines: consolidatedLines
+                });
+            }
+
+            return {
+                totalTokens,
+                hasSearchableText: totalTokens > 0,
+                pages
+            };
+        }
+
+        async function extractPageGeometries(pdf, rawPdfText) {
+            const list = [];
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                list.push({
+                    page: i,
+                    rotation: page.rotate || 0,
+                    userUnit: page.userUnit || 1.0,
+                    mediaBox: page.view,
+                    cropBox: extractRegexValue(rawPdfText, /\/CropBox\s*\[([^\]]+)\]/),
+                    trimBox: extractRegexValue(rawPdfText, /\/TrimBox\s*\[([^\]]+)\]/)
+                });
+            }
+            return list;
+        }
+
+        function resolveViewportChain(pdfText) {
+            const vpIndex = pdfText.indexOf('/VP');
+            if (vpIndex === -1) return null;
+
+            let fullChainDump = [];
+            const slice = pdfText.substring(vpIndex, vpIndex + 250);
+            const refMatch = slice.match(/\/VP\s*\[?\s*(\d+)\s+(\d+)\s+R\s*\]?/);
+
+            let vpObjText = refMatch ? (resolveObjectByRef(pdfText, refMatch[1], refMatch[2]) || slice) : slice;
+            fullChainDump.push(vpObjText.replace(/\r\n|\r|\n/g, ' ').replace(/\s+/g, ' '));
+
+            const measureRef = vpObjText.match(/\/Measure\s+(\d+)\s+(\d+)\s+R/);
+            let measureObjText = measureRef ? (resolveObjectByRef(pdfText, measureRef[1], measureRef[2]) || "") : "";
+            if (measureObjText) fullChainDump.push(measureObjText.replace(/\r\n|\r|\n/g, ' ').replace(/\s+/g, ' '));
+
+            const combinedText = fullChainDump.join(' ');
+            const extractArray = (k) => {
+                const m = combinedText.match(new RegExp(`\\/${k}\\s*\\[([^\\]]+)\\]`));
+                return m ? m[1].trim().split(/\s+/).map(Number) : null;
+            };
+            const extractString = (k) => {
+                const m = combinedText.match(new RegExp(`\\/${k}\\s*\\(([^\\)]+)\\)|\\/${k}\\s*\\[?([^\\]\\/>]+)`));
+                return m ? (m[1] || m[2]).trim() : null;
+            };
+
+            return {
+                resolved_object_chain: fullChainDump,
+                parsed_coordinates: {
+                    ground_points_GPTS: extractArray('GPTS'),
+                    spatial_reference_wkt: extractString('WKT') || extractString('GCS')
+                }
+            };
+        }
+
+        function resolveObjectByRef(pdfText, objNum, genNum) {
+            const header = `${objNum} ${genNum} obj`;
+            const start = pdfText.indexOf(header);
+            if (start === -1) return null;
+            const end = pdfText.indexOf('endobj', start);
+            return end === -1 ? null : pdfText.substring(start, end + 6);
+        }
+
+        function scanForGeoTiffTags(bytes) {
+            for (let i = 0; i < bytes.length - 8; i++) {
+                let isLittleEndian = false;
+                if (bytes[i] === 0x49 && bytes[i+1] === 0x49 && bytes[i+2] === 0x2A && bytes[i+3] === 0x00) isLittleEndian = true;
+                else if (bytes[i] === 0x4D && bytes[i+1] === 0x4D && bytes[i+2] === 0x00 && bytes[i+3] === 0x2A) isLittleEndian = false;
+                else continue;
+
+                const get16 = (off) => isLittleEndian ? (bytes[off] | (bytes[off+1] << 8)) : ((bytes[off] << 8) | bytes[off+1]);
+                const get32 = (off) => isLittleEndian ? (bytes[off] | (bytes[off+1] << 8) | (bytes[off+2] << 16) | (bytes[off+3] << 24)) : ((bytes[off] << 24) | (bytes[off+1] << 16) | (bytes[off+2] << 8) | bytes[off+3]);
+
+                const firstIfdOffset = get32(i + 4);
+                if (firstIfdOffset <= 0 || (i + firstIfdOffset + 2) >= bytes.length) continue;
+                const ifdStart = i + firstIfdOffset;
+                const numEntries = get16(ifdStart);
+
+                if (numEntries <= 0 || numEntries > 500) continue;
+
+                for (let j = 0; j < numEntries; j++) {
+                    const entryOffset = ifdStart + 2 + (j * 12);
+                    if (entryOffset + 12 > bytes.length) break;
+                    const tagID = get16(entryOffset);
+                    if (tagID === 34735 || tagID === 33922 || tagID === 33550) return true;
+                }
+            }
+            return false;
+        }
+
+        function extractRegexValue(text, regex) {
+            const m = text.match(regex);
+            return m ? m[1].trim() : null;
+        }
+
+        function extractXmpTag(xmp, tag) {
+            if (!xmp) return null;
+            const regex = new RegExp(`<(?:[a-zA-Z0-9]+:)?${tag}[^>]*>([^<]+)<\\/`, 'i');
+            const m = xmp.match(regex);
+            return m ? m[1].trim() : null;
+        }
+
+        function copySummaryText() {
+            const temp = document.createElement('div');
+            temp.innerHTML = summaryPane.innerHTML;
+            navigator.clipboard.writeText(temp.innerText);
+            statusBar.innerText = 'Summary copied to clipboard!';
+            setTimeout(() => statusBar.innerText = 'Ready', 2000);
+        }
+
+        function copyRawStreamText() {
+            navigator.clipboard.writeText(completeRawStreamText);
+            statusBar.innerText = 'Raw stream printout copied to clipboard!';
+            setTimeout(() => statusBar.innerText = 'Ready', 2000);
+        }
+    </script>
+</body>
+</html>

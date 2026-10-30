@@ -358,7 +358,10 @@ function normUser(val) {
 function formatDisplayName(identifier) {
     if (!identifier) return '';
     const raw = identifier.split('@')[0].split('.')[0].toLowerCase();
-    return raw === 'mckenzie' ? 'McKenzie' : raw.charAt(0).toUpperCase() + raw.slice(1);
+    if (typeof NAME_CASING_OVERRIDES !== 'undefined' && NAME_CASING_OVERRIDES[raw]) {
+        return NAME_CASING_OVERRIDES[raw];
+    }
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
 function canEditIssue(err) {
@@ -846,8 +849,7 @@ function triggerIssuePopover(clickEvent, err) {
     // Creator & Fixer Formatting
     const creatorPrefix = err.created_by || '';
     const creatorColors = getUserColorStyle(creatorPrefix);
-    const firstNameRaw = creatorPrefix ? creatorPrefix.split('.')[0].toLowerCase() : '';
-    let formattedFirstName = firstNameRaw === 'mckenzie' ? 'McKenzie' : (firstNameRaw ? firstNameRaw.charAt(0).toUpperCase() + firstNameRaw.slice(1) : '');
+    let formattedFirstName = formatDisplayName(creatorPrefix);
     const textHexOrClass = creatorColors.bg.replace(/^bg-/, 'text-');
 
     const fixerNorm = normUser(err.fixed_by);
@@ -2050,14 +2052,7 @@ function renderUI() {
         const creatorPrefix = err.created_by || '';
         const creatorColors = getUserColorStyle(creatorPrefix);
 
-        const firstNameRaw = creatorPrefix ? creatorPrefix.split('.')[0].toLowerCase() : '';
-
-        let formattedFirstName = '';
-        if (firstNameRaw === 'mckenzie') {
-            formattedFirstName = 'McKenzie';
-        } else if (firstNameRaw) {
-            formattedFirstName = firstNameRaw.charAt(0).toUpperCase() + firstNameRaw.slice(1);
-        }
+        let formattedFirstName = formatDisplayName(creatorPrefix);
 
         const textHexOrClass = creatorColors.bg.replace(/^bg-/, 'text-');
 

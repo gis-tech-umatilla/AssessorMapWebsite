@@ -485,18 +485,20 @@ async function fetchMapsDirectory() {
                 const hasReviewed = reviewersArr.includes(currentUserPrefix);
 
                 const sortedReviewers = [...reviewersArr].sort((a, b) => {
-                    if (a === 'mckenzie.bowey') return -1;
-                    if (b === 'mckenzie.bowey') return 1;
-                    if (a === 'ian.freel') return -1;
-                    if (b === 'ian.freel') return 1;
-                    if (a === 'matthew.lynch') return -1;
-                    if (b === 'matthew.lynch') return 1;
-                    if (a === 'aspen.buckingham') return -1;
-                    if (b === 'aspen.buckingham') return 1;
+                    const order = window.REVIEWER_SORT_ORDER || [];
+                    const idxA = order.indexOf(a);
+                    const idxB = order.indexOf(b);
+
+                    // Both found in config: sort by their position in the list
+                    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                    // Only one found: prioritize the configured user
+                    if (idxA !== -1) return -1;
+                    if (idxB !== -1) return 1;
+                    // Neither found: sort alphabetically
                     return a.localeCompare(b);
                 });
 
-sortedReviewers.forEach((prefix) => {
+            sortedReviewers.forEach((prefix) => {
                     const badge = document.createElement('button');
                     badge.className = "w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-bold tracking-widest shrink-0 cursor-pointer transition-all duration-150 relative saturate-85";
                     

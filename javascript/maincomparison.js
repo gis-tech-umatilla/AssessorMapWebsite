@@ -138,7 +138,7 @@
 
             const creatorHex = window.getUserHexColor
                 ? window.getUserHexColor(creatorBranch.creatorPrefix || creatorBranch.creatorName)
-                : '#86ad32';
+                : '#94a3b8';
 
             const creatorHeader = document.createElement('div');
             creatorHeader.className = "bg-[#36424a] px-3 py-2 flex items-center justify-between border-b border-black/20 select-none";

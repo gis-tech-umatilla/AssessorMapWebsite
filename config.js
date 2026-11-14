@@ -4,6 +4,10 @@ const SUPABASE_URL = "https://wsacgqykgmnsxzaqyvpn.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Tg79inBzykOOvoyN0ne1Jw_i7BpKu4D";
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// --- AUTH & ROSTER SYSTEM CONTROLS ---
+// Options: 'google' | 'azure' (Outlook / Microsoft 365) | 'both'
+const AUTH_PROVIDER = 'google';
+
 // --- ISSUE SIZE CONFIGURATION ---
 const ISSUE_SIZES = {
     small: 14,    // Size in pixels (or your desired scale unit)

@@ -506,17 +506,14 @@ async function fetchMapsDirectory() {
             sortedReviewers.forEach((prefix) => {
                     const badge = document.createElement('button');
                     badge.className = "w-6 h-6 rounded-full border flex items-center justify-center text-[10px] font-bold tracking-widest shrink-0 cursor-pointer transition-all duration-150 relative saturate-85";
-                    
-                    const nameParts = prefix.split('.');
-                    const initials = nameParts.length >= 2 
-                        ? (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase()
-                        : prefix.substring(0, 2).toUpperCase();
 
+                    const initials = getReviewerInitials(prefix);
                     const colors = getUserColorStyle(prefix);
+                    const reviewerName = getFormattedFirstName(prefix);
+
                     badge.className += ` ${colors.bg} ${colors.border} ${colors.text}`;
                     badge.innerText = initials;
-                    badge.title = `Reviewed by ${prefix}. Click to remove your review.`;
-
+                    badge.title = `Reviewed by ${reviewerName}. Click to remove your review.`;
                     badge.onclick = async (e) => {
                         e.stopPropagation();
                         let updatedReviewers = reviewersArr.filter(p => p !== prefix);

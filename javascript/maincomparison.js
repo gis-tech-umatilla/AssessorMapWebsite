@@ -178,12 +178,13 @@
                     sortedReviewers.forEach(prefix => {
                         const badge = document.createElement('span');
                         const badgeColor = window.getUserHexColor ? window.getUserHexColor(prefix) : '#64748b';
-                        const initials = window.MapService.getReviewerInitials(prefix);
+                        const initials = getReviewerInitials(prefix);
+                        const reviewerName = window.MapService.getFormattedFirstName(prefix);
 
                         badge.className = "w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center text-white border border-black/20 shadow-xs shrink-0";
                         badge.style.backgroundColor = badgeColor;
                         badge.innerText = initials;
-                        badge.title = `Reviewed by ${prefix}`;
+                        badge.title = `Reviewed by ${reviewerName}`;
                         badgeWrapper.appendChild(badge);
                     });
 

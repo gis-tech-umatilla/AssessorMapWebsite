@@ -355,21 +355,6 @@ function normUser(val) {
     return emailUser.split('.')[0];
 }
 
-function formatDisplayName(identifier) {
-    if (!identifier) return '';
-    
-    const cleanIdent = identifier.toLowerCase().trim();
-    
-    // 1. Check direct email/identifier mapping first
-    if (typeof NAME_CASING_OVERRIDES !== 'undefined' && NAME_CASING_OVERRIDES[cleanIdent]) {
-        return NAME_CASING_OVERRIDES[cleanIdent];
-    }
-    
-    // 2. Fallback: extract the first name and capitalize it
-    const raw = cleanIdent.split('@')[0].split('.')[0];
-    return raw.charAt(0).toUpperCase() + raw.slice(1);
-}
-
 function canEditIssue(err) {
     if (!err || !err.created_by) return true;
     const currentIdent = getCurrentUserIdentifierSync();

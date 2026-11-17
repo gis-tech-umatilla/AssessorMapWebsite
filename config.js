@@ -8,9 +8,11 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // Options: 'google' | 'azure' (Outlook / Microsoft 365) | 'both'
 const AUTH_PROVIDER = 'google';
 
+const DEFAULT_EMAIL_DOMAIN = '@umatillacounty.gov';
+
 // --- ISSUE SIZE CONFIGURATION ---
 const ISSUE_SIZES = {
-    small: 14,    // Size in pixels (or your desired scale unit)
+    small: 10,    // Size in pixels (or your desired scale unit)
     medium: 24,   // Size in pixels (or your desired scale unit)
     large: 32     // Size in pixels (or your desired scale unit)
 };
@@ -42,12 +44,18 @@ const USER_COLORS = {
     'matthew.lynch': '#f7a414'
 };
 
-// --- NAME CASING OVERRIDES ---
 const NAME_CASING_OVERRIDES = {
     'ian.freel@umatillacounty.gov': 'Ian',
     'matthew.lynch@umatillacounty.gov': 'Matthew',
     'mckenzie.bowey@umatillacounty.gov': 'McKenzie',
     'aspen.buckingham@umatillacounty.gov': 'Aspen'
+};
+
+const REVIEWER_INITIALS = {
+    'ian.freel@umatillacounty.gov': 'IF',
+    'matthew.lynch@umatillacounty.gov': 'ML',
+    'mckenzie.bowey@umatillacounty.gov': 'MB',
+    'aspen.buckingham@umatillacounty.gov': 'AB'
 };
 
 const FALLBACK_USER_COLORS = [
@@ -123,5 +131,9 @@ const GIS_LAYERS_REGISTRY = [
     "WaterBodyText"
 ];
 
-// Attach to window so all other scripts have access immediately
+// Not apart of config, don't touch!
 window.REVIEWER_SORT_ORDER = REVIEWER_SORT_ORDER;
+window.DEFAULT_EMAIL_DOMAIN = DEFAULT_EMAIL_DOMAIN;
+window.NAME_CASING_OVERRIDES = NAME_CASING_OVERRIDES;
+window.REVIEWER_INITIALS = REVIEWER_INITIALS;
+window.getReviewerInitials = getReviewerInitials;

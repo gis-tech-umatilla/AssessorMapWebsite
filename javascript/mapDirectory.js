@@ -266,7 +266,7 @@ async function fetchMapsDirectory() {
     mapList.innerHTML = '';
 
     if (rawGroups.length === 0 && rawMaps.length === 0) {
-        mapList.innerHTML = '<p class="text-xs text-slate-300/60 italic p-2">No maps uploaded yet.</p>';
+        mapList.innerHTML = `<p class="text-xs text-slate-300/60 italic p-2">No ${getMapTerm(true).toLowerCase()} uploaded yet.</p>`;
         return;
     }
 
@@ -382,7 +382,7 @@ async function fetchMapsDirectory() {
 
                 const confirmDelete = await showCustomConfirm(
                     `Delete Folder ${group.group_name}?`,
-                    `Deleting "${group.group_name}" will delete all maps and marked issues.<br><br>${formattedMapNames}`,
+                    `Deleting "${group.group_name}" will delete all ${getMapTerm(true).toLowerCase()} and marked issues.<br><br>${formattedMapNames}`,
                     "Delete",
                     "Cancel",
                     true
@@ -577,7 +577,7 @@ async function fetchMapsDirectory() {
 
                         const confirmDeletion = await showCustomConfirm(
                             `Delete ${cleanMapName}?`,
-                            `Deleting "${cleanMapName}" will delete the map and all marked issues.${countBadge}`,
+                            `Deleting "${cleanMapName}" will delete the ${getMapTerm().toLowerCase()} and all marked issues.${countBadge}`,
                             "Delete",
                             "Cancel",
                             true
@@ -621,7 +621,7 @@ async function fetchMapsDirectory() {
                                 if (mapWrapper) mapWrapper.classList.add('hidden');
                                 if (placeholderText) {
                                     placeholderText.innerHTML = `
-                                        <p class="text-lg font-bold opacity-80 text-[#4c5c68]">No Assessor Map Selected</p>
+                                        <p class="text-lg font-bold opacity-80 text-[#4c5c68]">No ${getMapTerm()} Selected</p>
                                         <p class="text-sm text-slate-500 font-medium">Choose a Map From The Left Sidebar</p>
                                     `;
                                     placeholderText.classList.remove('hidden');

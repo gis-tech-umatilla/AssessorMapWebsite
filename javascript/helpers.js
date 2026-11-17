@@ -1,4 +1,25 @@
-// javascript/helpers.js
+function getMapTerm(plural = false) {
+    const base = (typeof MAP_TERM !== 'undefined' && MAP_TERM.trim())
+        ? MAP_TERM.trim()
+        : 'Assessor Map';
+    if (!plural) return base;
+    return base.endsWith('s') ? base : `${base}s`;
+}
+
+window.getMapTerm = getMapTerm;
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Update static HTML labels
+    document.querySelectorAll('[data-map-term]').forEach(el => {
+        const isPlural = el.getAttribute('data-map-term') === 'plural';
+        el.textContent = getMapTerm(isPlural);
+    });
+
+    // 2. Safely update the browser tab title while preserving the specific tool's name
+    if (document.title.includes('Assessor Map')) {
+        document.title = document.title.replace('Assessor Map', getMapTerm(false));
+    }
+});
 
 // --- SHARED GLOBAL STATE ---
 let isSubmitting = false;

@@ -9,7 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
+    <script src="javascript/helpers.js"></script>
     <link rel="icon" type="image/x-icon" href="logo.png">
     
     <style>
@@ -309,9 +309,9 @@
         <!-- Controls Row -->
         <div class="flex justify-between gap-3 shrink-0">
             <input type="file" id="fileInput" accept=".pdf,application/pdf" style="display: none;">
-            <div class="drop-zone flex-1" id="dropZone">
-                Drag & Drop an Assessor PDF Map here, or <span style="color: #38bdf8; text-decoration: underline;">Browse Local File</span>
-            </div>
+        <div class="drop-zone flex-1" id="dropZone">
+            Drag & Drop your <span data-map-term="singular">Assessor Map</span> PDF here, or <span style="color: #38bdf8; text-decoration: underline;">Browse Local File</span>
+        </div>
             
             <div class="toolbar">
                 <button class="btn-action" onclick="copySummaryText()">Copy Summary</button>

@@ -1,5 +1,9 @@
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
+// Terminology used for maps across the website (singular form)
+// Examples: 'Assessor Map' | 'Tax Map' | 'Cadastral Map' | 'Assessment Map' | 'Parcel Map' | 'GIS Map' | 'Plat Map'
+const MAP_TERM = 'Assessor Map';
+
 const SUPABASE_URL = "https://wsacgqykgmnsxzaqyvpn.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Tg79inBzykOOvoyN0ne1Jw_i7BpKu4D";
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);

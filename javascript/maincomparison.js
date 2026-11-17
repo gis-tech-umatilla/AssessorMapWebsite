@@ -129,7 +129,7 @@
 
         customSelectMenu.innerHTML = '';
         if (tree.length === 0) {
-            customSelectMenu.innerHTML = '<p class="text-xs text-slate-400 italic p-3">No maps available.</p>';
+            customSelectMenu.innerHTML = `<p class="text-xs text-slate-400 italic p-3">No ${getMapTerm(true).toLowerCase()} available.</p>`;
             return;
         }
 
@@ -411,8 +411,8 @@
                 zoomControls.style.display = 'none';
 
                 placeholderText.innerHTML = `
-                    <p class="text-lg font-bold opacity-80 text-[#4c5c68]">New Map Selection Confirmed</p>
-                    <p class="text-sm text-slate-500 font-medium">Please Upload an Old Map from the Left Sidebar to Continue</p>
+                    <p class="text-lg font-bold opacity-80 text-[#4c5c68]">New ${getMapTerm()} Selection Confirmed</p>
+                    <p class="text-sm text-slate-500 font-medium">Please Upload an Old ${getMapTerm()} from the Left Sidebar to Continue</p>
                 `;
                 placeholderText.classList.remove('hidden');
                 placeholderText.style.display = 'block';

@@ -41,7 +41,7 @@
     <header class="bg-[#4c5c68] text-white p-4 shadow-md flex justify-between items-center z-50 border-b border-white/10">
         <div class="flex items-center space-x-4">
             <img src="logo.png" alt="County Logo" class="h-8 w-auto object-contain">
-            <h1 class="text-xl font-bold tracking-tight">Assessor Map Comparison Tool</h1>
+            <h1 class="text-xl font-bold tracking-tight"><span data-map-term="singular">Assessor Map</span> Comparison Tool</h1>
             <a href="index.html" class="text-[10pt] bg-black/20 hover:bg-black/40 text-slate-200 px-3 py-1.5 rounded-md border border-white/10 transition font-medium">QA Tool</a>
         </div>
         <div class="flex items-center space-x-4">
@@ -73,7 +73,7 @@
                         <div class="flex items-center space-x-2 relative" id="newMapControlsContainer">
                             <div class="flex-1 min-w-0" id="containerSelectNew">
                                 <button id="customSelectBtn" type="button" class="w-full bg-[#37434d] hover:bg-[#2f3942] text-xs text-slate-100 p-2 rounded-lg border border-white/10 outline-none flex justify-between items-center cursor-pointer transition shadow-sm">
-                                    <span id="customSelectLabel" class="truncate text-slate-300 font-medium">Select Assessor Map...</span>
+                                    <span id="customSelectLabel" class="truncate text-slate-300 font-medium">Select <span data-map-term="singular">Assessor Map</span>...</span>
                                     <span class="text-[10px] text-slate-400 ml-1">▼</span>
                                 </button>
                             </div>
@@ -293,7 +293,7 @@
 
             <!-- PLACEHOLDER PROMPT (BLANK SCENE) -->
             <div id="placeholderText" class="text-[#4c5c68] text-center z-10">
-                <p class="text-lg font-bold opacity-80 text-[#4c5c68]">No Assessor Map Selected</p>
+                <p class="text-lg font-bold opacity-80 text-[#4c5c68]">No <span data-map-term="singular">Assessor Map</span> Selected</p>
                 <p class="text-sm text-slate-500 font-medium">Choose or Upload a New Map From The Left Sidebar</p>
             </div>
         </div>

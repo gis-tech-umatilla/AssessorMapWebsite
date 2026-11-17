@@ -44,7 +44,10 @@ const USER_COLORS = {
 
 // --- NAME CASING OVERRIDES ---
 const NAME_CASING_OVERRIDES = {
-    'mckenzie': 'McKenzie'
+    'ian.freel@umatillacounty.gov': 'Ian',
+    'matthew.lynch@umatillacounty.gov': 'Matthew',
+    'mckenzie.bowey@umatillacounty.gov': 'McKenzie',
+    'aspen.buckingham@umatillacounty.gov': 'Aspen'
 };
 
 const FALLBACK_USER_COLORS = [
@@ -58,6 +61,7 @@ const FALLBACK_USER_COLORS = [
 const GIS_LAYERS_REGISTRY = [
     "Abandoned Railroads",
     "Adjacent County Name/Stateline Text",
+    "ArrowLine",
     "ArrowLine 400",
     "ArrowLine 2000",
     "ArrowLine 100",
@@ -99,10 +103,7 @@ const GIS_LAYERS_REGISTRY = [
     "Reference Notes",
     "River",
     "River Text",
-    "Section Corner 100",
-    "Section Corner 200",
-    "Section Corner 400",
-    "Section Corner 2000",
+    "Section Corner Tick",
     "Section Corner Tick 100",
     "Section Corner Tick 200",
     "Section Corner Tick 400",

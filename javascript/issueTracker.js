@@ -357,10 +357,16 @@ function normUser(val) {
 
 function formatDisplayName(identifier) {
     if (!identifier) return '';
-    const raw = identifier.split('@')[0].split('.')[0].toLowerCase();
-    if (typeof NAME_CASING_OVERRIDES !== 'undefined' && NAME_CASING_OVERRIDES[raw]) {
-        return NAME_CASING_OVERRIDES[raw];
+    
+    const cleanIdent = identifier.toLowerCase().trim();
+    
+    // 1. Check direct email/identifier mapping first
+    if (typeof NAME_CASING_OVERRIDES !== 'undefined' && NAME_CASING_OVERRIDES[cleanIdent]) {
+        return NAME_CASING_OVERRIDES[cleanIdent];
     }
+    
+    // 2. Fallback: extract the first name and capitalize it
+    const raw = cleanIdent.split('@')[0].split('.')[0];
     return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 

@@ -58,12 +58,16 @@ function getUserTextColorClass(prefix) {
 
 function getFormattedFirstName(prefix) {
     if (!prefix || prefix === 'unassigned') return 'Unassigned';
-    const firstNameRaw = prefix.split('.')[0].toLowerCase();
+    
+    const cleanPrefix = prefix.toLowerCase().trim();
 
-    if (NAME_CASING_OVERRIDES[firstNameRaw]) {
-        return NAME_CASING_OVERRIDES[firstNameRaw];
+    // 1. Check direct email/identifier mapping first
+    if (NAME_CASING_OVERRIDES[cleanPrefix]) {
+        return NAME_CASING_OVERRIDES[cleanPrefix];
     }
 
+    // 2. Fallback: extract the first name and capitalize it
+    const firstNameRaw = cleanPrefix.split('@')[0].split('.')[0];
     return firstNameRaw.charAt(0).toUpperCase() + firstNameRaw.slice(1);
 }
 

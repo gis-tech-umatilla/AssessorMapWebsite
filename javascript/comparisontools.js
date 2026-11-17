@@ -103,11 +103,11 @@
     }
 
     function startComparison({ urlOld, urlNew, bounds, map, initialZoom }) {
+        destroy();
+
         primaryMap = map;
         compBounds = bounds;
         initialCompZoom = initialZoom;
-
-        destroy();
 
         overlayOld = L.imageOverlay(urlOld, compBounds, { zIndex: 10 }).addTo(primaryMap);
         overlayNew = L.imageOverlay(urlNew, compBounds, { zIndex: 20 }).addTo(primaryMap);
@@ -150,6 +150,17 @@
                 if (sideMapNew && sideMapOld && compBounds) {
                     sideMapNew.invalidateSize();
                     sideMapOld.invalidateSize();
+
+                    sideMapNew.setMinZoom(-20);
+                    sideMapOld.setMinZoom(-20);
+
+                    const sideFitZoom = sideMapNew.getBoundsZoom(compBounds, false, [10, 10]);
+                    const effectiveMinZoom = initialCompZoom != null
+                        ? Math.min(initialCompZoom, sideFitZoom)
+                        : sideFitZoom;
+
+                    sideMapNew.setMinZoom(effectiveMinZoom);
+                    sideMapOld.setMinZoom(effectiveMinZoom);
 
                     if (targetCenter && targetZoom != null && !isNaN(targetZoom)) {
                         sideMapNew.setView(targetCenter, targetZoom, { animate: false });
@@ -294,6 +305,8 @@
             overlayOld = null;
             overlayNew = null;
         }
+        compBounds = null;
+        initialCompZoom = null;
         elements.swipeHandle?.classList.add('hidden');
         elements.sideBySideContainer?.classList.add('hidden');
     }

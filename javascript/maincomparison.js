@@ -87,7 +87,8 @@
         mapViewport._wheelFilterBound = true;
         mapViewport.addEventListener('wheel', (e) => {
             const activeMap = window.ComparisonTools.getActiveLeaflet();
-            const bounds = window.ComparisonTools.getCompBounds() || currentMapBounds;
+            const isCompStage = !document.getElementById('sidebarStageOverlay')?.classList.contains('hidden');
+            const bounds = isCompStage ? window.ComparisonTools.getCompBounds() : currentMapBounds;
             if (!activeMap || !bounds) return;
 
             const containerPoint = activeMap.mouseEventToContainerPoint(e);
@@ -326,7 +327,7 @@
 
             zoomControls.classList.remove('hidden');
             zoomControls.style.display = 'flex';
-
+            
             const map = getOrCreatePrimaryMap();
             currentMapBounds = [[0, 0], [res.h, res.w]];
 
@@ -345,6 +346,7 @@
             }
 
             map.invalidateSize();
+            map.setMinZoom(-20); // Unlock previous map's minZoom so fitBounds isn't clamped
             map.fitBounds(currentMapBounds, { padding: [15, 15], animate: false });
             initialCalibZoom = map.getZoom();
             map.setMinZoom(initialCalibZoom);
@@ -518,15 +520,23 @@
 
                 const map = getOrCreatePrimaryMap();
                 map.invalidateSize();
+                map.setMinZoom(-20);
 
-                // Lock minZoom strictly ONCE on initial Full View fit and never alter it on toggle
+                // Calculate the required zoom-out level for both maps' full sizes and shapes
+                const boundsNew = [[0, 0], [dimNew.h, dimNew.w]];
+                const boundsOld = [[0, 0], [dimOld.h, dimOld.w]];
+                const zoomFitNew = map.getBoundsZoom(boundsNew, false, [10, 10]);
+                const zoomFitOld = map.getBoundsZoom(boundsOld, false, [10, 10]);
+                const zoomFitComp = map.getBoundsZoom(compBounds, false, [10, 10]);
+
+                // Lock max zoom-out once to the largest extent (lowest zoom value) between the two maps
                 if (lockedComparisonMinZoom === null) {
-                    map.fitBounds(compBounds, { padding: [10, 10], animate: false });
-                    lockedComparisonMinZoom = map.getZoom();
-                    map.setMinZoom(lockedComparisonMinZoom);
-                } else {
-                    map.fitBounds(compBounds, { padding: [10, 10], animate: false });
+                    lockedComparisonMinZoom = Math.min(zoomFitNew, zoomFitOld, zoomFitComp);
                 }
+                map.setMinZoom(lockedComparisonMinZoom);
+
+                // Default zoom fits the active comparison bounds (Full View or Cropped View)
+                map.fitBounds(compBounds, { padding: [10, 10], animate: false });
 
                 window.ComparisonTools.startComparison({
                     urlOld,
@@ -566,8 +576,10 @@
     if (zReset) {
         zReset.onclick = () => {
             const map = window.ComparisonTools.getActiveLeaflet();
-            const b = window.ComparisonTools.getCompBounds() || currentMapBounds;
-            if (map && b) map.fitBounds(b, { padding: [10, 10], animate: false });
+            const isCompStage = !document.getElementById('sidebarStageOverlay')?.classList.contains('hidden');
+            const b = isCompStage ? window.ComparisonTools.getCompBounds() : currentMapBounds;
+            const pad = isCompStage ? [10, 10] : [15, 15];
+            if (map && b) map.fitBounds(b, { padding: pad, animate: false });
         };
     }
     if (zIn) zIn.onclick = () => window.ComparisonTools.getActiveLeaflet()?.zoomIn(0.5);

@@ -11,7 +11,7 @@ The frontend is 100% static HTML/JavaScript (no build step or server
 required) and connects directly to a free Supabase backend.
 
 
-## PREREQUISITES
+## Prerequisites 
 
 Before starting, you will need:
 1. A GitHub account (to host the website for free via GitHub Pages).
@@ -20,7 +20,7 @@ Before starting, you will need:
    (Google Workspace and/or Microsoft 365 / Azure Entra ID).
 
 
-## STEP 1: FORK THIS REPOSITORY
+## STEP 1: Fork This Repository
 1. Log in to GitHub and navigate to the main page of this repository.
 2. Click the "Fork" button in the top-right corner.
 3. Choose your personal or county GitHub account as the Owner, optionally 
@@ -33,7 +33,7 @@ access is locked down by Supabase Row Level Security (RLS) to your
 county's email domain.
 
 
-## STEP 2: SET UP THE SUPABASE BACKEND
+## STEP 2: Set up the Supabase Backend
 1. Go to https://supabase.com/ and sign in to create a new Supabase project.
 2. Give the project a name (e.g., County Map Reviewer), generate a strong 
    database password, choose a nearby region, and click "Create new project".
@@ -62,7 +62,7 @@ county's email domain.
    * Publishable / anon public key
 
 
-## STEP 3: DEPLOY THE WEBSITE WITH GITHUB PAGES
+## STEP 3: Deploy the Website With Github Pages
 1. Open your forked repository on GitHub and click "Settings".
 2. In the left sidebar, click "Pages".
 3. Under "Build and deployment":
@@ -73,7 +73,7 @@ county's email domain.
    Copy this URL for the next step.
 
 
-## STEP 4: CONFIGURE STAFF LOGIN
+## STEP 4: Configure Staff Login
 A. Add Redirect URLs in Supabase
 1. In your Supabase Dashboard, go to "Authentication" -> "URL Configuration".
 2. Set "Site URL" to your GitHub Pages URL from Step 3.
@@ -95,14 +95,14 @@ B. Enable Your Auth Provider
 3. Toggle the provider ON and click "Save".
 
 
-## STEP 5: CUSTOMIZE YOUR COUNTY CONFIGURATION
+## STEP 5: Customize Your Counties Configuration
 All the config settings live in config.js. Make sure to change all settings to match your county.
 
 Once you commit your changes to the main branch, GitHub Pages will 
 automatically update your live website within about 60 seconds.
 
 
-## TROUBLESHOOTING
+## Troubleshooting
 * "Access Denied" or blank map list after signing in: 
   Verify that the email domain in DEFAULT_EMAIL_DOMAIN matches the 
   domain set inside public.get_county_email_domain() in Supabase, and 

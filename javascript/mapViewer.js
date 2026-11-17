@@ -449,7 +449,7 @@ async function loadActiveMap(mapObj) {
     currentMapId = mapObj.id;
     if (typeof fetchMapsDirectory === 'function') fetchMapsDirectory();
 
-    placeholderText.innerHTML = "<p class='text-[#1985a1] font-semibold animate-pulse'>Loading Maps...</p>";
+    placeholderText.innerHTML = "<p class='text-[#1985a1] font-semibold animate-pulse'>Loading Map...</p>";
     if (drawingToolbar) drawingToolbar.classList.add('hidden');
     if (zoomControls) zoomControls.classList.add('hidden');
     if (typeof hideIssuePopover === 'function') hideIssuePopover();
